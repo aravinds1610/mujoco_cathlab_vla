@@ -2,7 +2,7 @@
 
 A MuJoCo simulation of a Franka FR3 Duo, a two-arm robot, handing instruments over in a cardiac cath lab. It is built to generate synthetic demonstrations and evaluate policies for the task "Hand me the `<object>`": pick a named instrument from a cluttered table and place it on a handover tray.
 
-Status: work in progress. The robot model, the randomized scene and the simulator backend work and are tested. The scripted expert that generates data, and the LeRobot dataset writer, come next.
+Status: work in progress. Working and tested: the robot model, the randomized scene, the simulator backend, a scripted IK expert, a LeRobot v3 dataset generator, and an evaluation harness. Next: SmolVLA fine-tuning, GraspGen grasps, and more randomization.
 
 ## What's here
 
@@ -15,6 +15,9 @@ Status: work in progress. The robot model, the randomized scene and the simulato
 | `cathlab_sim/stages.py` | Task stage checks (reach, grasp, lift, transport, place) and collision detection |
 | `cathlab_sim/contracts.py` | Shared interfaces: `SimBackend`, `SceneSpec`, `StepInfo`, `PolicyAdapter`, … |
 | `cathlab_sim/ik.py` | Inverse kinematics for each arm's grasp point |
+| `cathlab_sim/expert.py` | Scripted expert: grasp from the true object pose, waypoints, IK at 30 Hz (left arm). `expert_policy.py` wraps it as a `PolicyAdapter` |
+| `cathlab_sim/generate.py` | Writes expert demos as a LeRobot v3 dataset, plus `manifest.yaml` and per-episode metadata. Accepts a `GapSpec` |
+| `cathlab_sim/evaluate.py` | Runs a policy on seeded episodes. Reports success rate with a 95% Wilson CI, failure stages, per-object results and latency |
 | `configs/` | Object definitions (syringe, catheter, sheath, guidewire, scissors, gauze) and the scene spec with randomization ranges |
 | `docs/AR2_robot_model.md` | Robot model and the 16-number action/state mapping |
 | `tests/` | CPU tests: schema, mapping, layouts, backend determinism, stage checks |
@@ -23,7 +26,7 @@ Observations use LeRobot dataset key names: `observation.state` (float32, 16 val
 
 ## Setup
 
-Tested on Ubuntu 24.04 with Python 3.12.
+Tested on Ubuntu 24.04 with Python 3.12 and an NVIDIA GPU (CUDA 13 driver). PyTorch is pulled in by lerobot.
 
 ```bash
 git clone <this repo> && cd <repo>
@@ -44,6 +47,15 @@ python -m cathlab_sim.view --seed 3 --target catheter   # interactive viewer
 ```
 
 In the viewer, **Rendering → Camera** switches between the three cameras, and the **Control** panel moves each of the 16 actuators. Without a GPU, set `MUJOCO_GL=osmesa` for the tests.
+
+Generate a dataset and evaluate the expert:
+
+```bash
+python -m cathlab_sim.generate --n 200 --out datasets/handover_v1 [--gap gap.json] [--objects syringe sheath]
+python -m cathlab_sim.evaluate --policy expert --n 60 --seed0 10000 --out reports/expert_eval.json
+```
+
+Load the dataset back with `LeRobotDataset("cathlab/handover_mujoco_scripted", root="datasets/handover_v1", video_backend="pyav")`. Use `video_backend="pyav"` unless system ffmpeg is installed for torchcodec.
 
 Minimal backend use:
 

@@ -42,7 +42,11 @@ def test_same_seed_is_bit_identical(be):
     b2, _ = be.step(HOLD)
     np.testing.assert_array_equal(a["privileged.target_pos"], b["privileged.target_pos"])
     np.testing.assert_array_equal(a2["observation.state"], b2["observation.state"])
-    np.testing.assert_array_equal(a2["observation.images.external_camera"], b2["observation.images.external_camera"])
+    # Physics is bit-exact; GPU rasterization is not guaranteed to be, so allow
+    # a handful of pixels to differ by one intensity level.
+    ia_, ib_ = a2["observation.images.external_camera"].astype(int), b2["observation.images.external_camera"].astype(int)
+    diff = np.abs(ia_ - ib_)
+    assert diff.max() <= 1 and (diff > 0).mean() < 1e-4
 
 
 def test_different_seeds_move_target(be):

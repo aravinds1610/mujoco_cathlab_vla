@@ -2,7 +2,7 @@
 
 | Stage     | Predicate                                                |
 |-----------|----------------------------------------------------------|
-| reach     | a TCP within 5 cm of the target                          |
+| reach     | a gripper pinch point within 5 cm of the target          |
 | grasp     | a gripper closed and touching the target                 |
 | lift      | target's lowest point > table + 5 cm                     |
 | transport | target xy within the handover tray                       |
@@ -28,7 +28,9 @@ REST_SPEED = 0.02          # m/s
 class StageEvaluator:
     def __init__(self, model: mujoco.MjModel):
         self.model = model
-        self.tcp = {s: model.site(f"{s}_tcp").id for s in SIDES}
+        # Menagerie 2F-85 "pinch" site = midpoint between the fingertips (the TCP marker copied
+        # from Isaac sits ~4 cm behind it, so thin objects could never count as "reached")
+        self.pinch = {s: model.site(f"{s}_gripper_pinch").id for s in SIDES}
         self.driver_q = {s: model.joint(f"{s}_gripper_right_driver_joint").qposadr[0] for s in SIDES}
         self.grip_act = {s: model.actuator(f"{s}_gripper_fingers_actuator").id for s in SIDES}
         bodies_of = lambda prefix: {b for b in range(model.nbody) if model.body(b).name.startswith(prefix)}
@@ -60,7 +62,7 @@ class StageEvaluator:
         mujoco.mj_objectVelocity(self.model, data, mujoco.mjtObj.mjOBJ_BODY, self.target_body, vel, 0)
         in_tray = bool(np.all(np.abs(p[:2] - self.tray_xy) <= self.tray_half))
         flags = {
-            "reach": min(np.linalg.norm(data.site_xpos[self.tcp[s]] - p) for s in SIDES) < REACH_DIST,
+            "reach": min(np.linalg.norm(data.site_xpos[self.pinch[s]] - p) for s in SIDES) < REACH_DIST,
             "grasp": any(closing[s] and touching(self.gripper_geoms[s]) for s in SIDES),
             "lift": p[2] - self.target_half_h > TABLE_TOP + LIFT_HEIGHT,
             "transport": in_tray,

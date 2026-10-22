@@ -1,0 +1,14 @@
+# TaskSpec (contracts.TaskSpec) for the reference task in the handoff (§2).
+task_id: handover
+instruction_templates:
+  - "Hand me the {object}"
+  - "Help me with the {object}"
+  - "Please pass the {object}"
+objects: [guidewire, catheter, sheath, syringe, scissors, gauze]
+success_predicate: "all stages latched (reach, grasp, lift, transport, place)"
+stage_predicates:
+  reach: "a gripper pinch point within 5 cm of the target"
+  grasp: "a gripper closing and touching the target"
+  lift: "target's lowest point more than 5 cm above the table"
+  transport: "target xy within the handover tray"
+  place: "target resting on the handover tray floor, grippers open and not touching it"

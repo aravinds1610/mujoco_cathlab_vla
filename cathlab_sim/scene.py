@@ -53,7 +53,7 @@ IMAGE_SIZE = 224
 # Task objects come from the SceneSpec YAML (configs/). Use capsules/boxes, not cylinders:
 # cylinder-box contacts sank ~1 cm into the tray floor.
 GEOM_TYPES = {"capsule": mujoco.mjtGeom.mjGEOM_CAPSULE, "box": mujoco.mjtGeom.mjGEOM_BOX}
-TRAYS = {"handover_tray": (0.60, -0.40)}
+TRAYS = {"handover_tray": (0.58, -0.26)}  # within the left arm's reach (single-arm expert v1)
 TRAY_HALF = (0.15, 0.115)  # ~300 x 230 mm interior, like the Isaac serving tray
 TRAY_WALL_H = 0.03
 
@@ -76,6 +76,10 @@ def _arm_with_gripper() -> mujoco.MjSpec:
     flange.add_site(name="tcp", pos=TCP_IN_LINK8, size=[0.005] * 3, rgba=[1, 0, 0, 0.5], group=4)
     cam = REF["cameras"]["left_wrist_camera"]  # same mount on both arms (in flange frame)
     flange.add_camera(name="wrist_camera", pos=cam["pos"], xyaxes=cam["xyaxes"], fovy=CAM_FOVY["wrist"])
+    # Gravity compensation, like the real Franka controller: without it the position
+    # servos sag ~0.01 rad under load (~1 cm at the gripper)
+    for body in arm.bodies:
+        body.gravcomp = 1.0
     return arm
 
 

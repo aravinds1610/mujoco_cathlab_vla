@@ -23,7 +23,8 @@ AREA_CORNERS = {f"source_corner_{i}": (x, y, TABLE_TOP + 0.10)
 # Gripper pointing straight down (TCP z = world -z), fingers opening along world y
 DOWN_QUATS = [np.array(q) for q in ([0, 1, 0, 0], [0, 0, 1, 0])]  # two yaw options, 90 deg apart
 REACH = {  # side -> named targets 10 cm above the surface
-    "left":  {**AREA_CORNERS, "handover_point": (0.55, 0.0, TABLE_TOP + 0.25)},
+    "left":  {**AREA_CORNERS, "handover_point": (0.55, 0.0, TABLE_TOP + 0.25),
+              "handover_tray": (*TRAYS["handover_tray"], TABLE_TOP + 0.10)},
     "right": {"handover_tray": (*TRAYS["handover_tray"], TABLE_TOP + 0.10), "handover_point": (0.55, 0.0, TABLE_TOP + 0.25)},
 }
 

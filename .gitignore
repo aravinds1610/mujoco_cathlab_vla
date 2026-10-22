@@ -2,6 +2,8 @@
 external/
 challenge/
 *.zip
+# Generated datasets (large)
+datasets/
 # Team-internal brief, not for sharing
 aravind-handoff.md
 # Python / tooling
@@ -9,3 +11,5 @@ aravind-handoff.md
 __pycache__/
 *.pyc
 .pytest_cache/
+reports/*.log
+MUJOCO_LOG.TXT

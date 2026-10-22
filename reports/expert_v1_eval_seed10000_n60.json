@@ -1,0 +1,602 @@
+{
+  "policy": {
+    "name": "scripted_ik_expert_v1",
+    "params_m": 0.0,
+    "chunk_size": 10,
+    "control_hz": 30.0,
+    "action_dim": 16
+  },
+  "scene_id": "cathlab_minimal",
+  "task_id": "handover",
+  "n": 60,
+  "successes": 47,
+  "success_rate": 0.7833333333333333,
+  "ci95": [
+    0.6637973165265748,
+    0.8687707895359299
+  ],
+  "failure_stages": {
+    "reach": 0,
+    "grasp": 0,
+    "lift": 13,
+    "transport": 0,
+    "place": 0
+  },
+  "per_object": {
+    "guidewire": {
+      "successes": 10,
+      "n": 10
+    },
+    "catheter": {
+      "successes": 3,
+      "n": 10
+    },
+    "sheath": {
+      "successes": 9,
+      "n": 10
+    },
+    "syringe": {
+      "successes": 10,
+      "n": 10
+    },
+    "scissors": {
+      "successes": 7,
+      "n": 10
+    },
+    "gauze": {
+      "successes": 8,
+      "n": 10
+    }
+  },
+  "collision_episodes": 0,
+  "latency_ms": {
+    "mean": 6.514551282663505,
+    "p95": 0.0015886002074694254
+  },
+  "seeds": [
+    10000,
+    10059
+  ],
+  "episodes": [
+    {
+      "seed": 10000,
+      "target": "guidewire",
+      "instruction": "Hand me the guidewire",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 392
+    },
+    {
+      "seed": 10001,
+      "target": "catheter",
+      "instruction": "Help me with the catheter",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 440
+    },
+    {
+      "seed": 10002,
+      "target": "sheath",
+      "instruction": "Help me with the sheath",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 405
+    },
+    {
+      "seed": 10003,
+      "target": "syringe",
+      "instruction": "Help me with the syringe",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 412
+    },
+    {
+      "seed": 10004,
+      "target": "scissors",
+      "instruction": "Help me with the scissors",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 394
+    },
+    {
+      "seed": 10005,
+      "target": "gauze",
+      "instruction": "Help me with the gauze",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 415
+    },
+    {
+      "seed": 10006,
+      "target": "guidewire",
+      "instruction": "Please pass the guidewire",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 409
+    },
+    {
+      "seed": 10007,
+      "target": "catheter",
+      "instruction": "Hand me the catheter",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 438
+    },
+    {
+      "seed": 10008,
+      "target": "sheath",
+      "instruction": "Help me with the sheath",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 447
+    },
+    {
+      "seed": 10009,
+      "target": "syringe",
+      "instruction": "Hand me the syringe",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 422
+    },
+    {
+      "seed": 10010,
+      "target": "scissors",
+      "instruction": "Please pass the scissors",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 460
+    },
+    {
+      "seed": 10011,
+      "target": "gauze",
+      "instruction": "Please pass the gauze",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 424
+    },
+    {
+      "seed": 10012,
+      "target": "guidewire",
+      "instruction": "Hand me the guidewire",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 414
+    },
+    {
+      "seed": 10013,
+      "target": "catheter",
+      "instruction": "Help me with the catheter",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 450
+    },
+    {
+      "seed": 10014,
+      "target": "sheath",
+      "instruction": "Please pass the sheath",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 439
+    },
+    {
+      "seed": 10015,
+      "target": "syringe",
+      "instruction": "Help me with the syringe",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 403
+    },
+    {
+      "seed": 10016,
+      "target": "scissors",
+      "instruction": "Help me with the scissors",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 436
+    },
+    {
+      "seed": 10017,
+      "target": "gauze",
+      "instruction": "Please pass the gauze",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 394
+    },
+    {
+      "seed": 10018,
+      "target": "guidewire",
+      "instruction": "Hand me the guidewire",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 441
+    },
+    {
+      "seed": 10019,
+      "target": "catheter",
+      "instruction": "Hand me the catheter",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 450
+    },
+    {
+      "seed": 10020,
+      "target": "sheath",
+      "instruction": "Hand me the sheath",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 385
+    },
+    {
+      "seed": 10021,
+      "target": "syringe",
+      "instruction": "Hand me the syringe",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 415
+    },
+    {
+      "seed": 10022,
+      "target": "scissors",
+      "instruction": "Please pass the scissors",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 442
+    },
+    {
+      "seed": 10023,
+      "target": "gauze",
+      "instruction": "Please pass the gauze",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 490
+    },
+    {
+      "seed": 10024,
+      "target": "guidewire",
+      "instruction": "Hand me the guidewire",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 434
+    },
+    {
+      "seed": 10025,
+      "target": "catheter",
+      "instruction": "Hand me the catheter",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 460
+    },
+    {
+      "seed": 10026,
+      "target": "sheath",
+      "instruction": "Hand me the sheath",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 385
+    },
+    {
+      "seed": 10027,
+      "target": "syringe",
+      "instruction": "Hand me the syringe",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 416
+    },
+    {
+      "seed": 10028,
+      "target": "scissors",
+      "instruction": "Hand me the scissors",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 392
+    },
+    {
+      "seed": 10029,
+      "target": "gauze",
+      "instruction": "Hand me the gauze",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 413
+    },
+    {
+      "seed": 10030,
+      "target": "guidewire",
+      "instruction": "Please pass the guidewire",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 443
+    },
+    {
+      "seed": 10031,
+      "target": "catheter",
+      "instruction": "Help me with the catheter",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 440
+    },
+    {
+      "seed": 10032,
+      "target": "sheath",
+      "instruction": "Please pass the sheath",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 480
+    },
+    {
+      "seed": 10033,
+      "target": "syringe",
+      "instruction": "Help me with the syringe",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 443
+    },
+    {
+      "seed": 10034,
+      "target": "scissors",
+      "instruction": "Please pass the scissors",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 490
+    },
+    {
+      "seed": 10035,
+      "target": "gauze",
+      "instruction": "Hand me the gauze",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 398
+    },
+    {
+      "seed": 10036,
+      "target": "guidewire",
+      "instruction": "Hand me the guidewire",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 392
+    },
+    {
+      "seed": 10037,
+      "target": "catheter",
+      "instruction": "Help me with the catheter",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 450
+    },
+    {
+      "seed": 10038,
+      "target": "sheath",
+      "instruction": "Hand me the sheath",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 449
+    },
+    {
+      "seed": 10039,
+      "target": "syringe",
+      "instruction": "Hand me the syringe",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 412
+    },
+    {
+      "seed": 10040,
+      "target": "scissors",
+      "instruction": "Hand me the scissors",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 480
+    },
+    {
+      "seed": 10041,
+      "target": "gauze",
+      "instruction": "Hand me the gauze",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 384
+    },
+    {
+      "seed": 10042,
+      "target": "guidewire",
+      "instruction": "Help me with the guidewire",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 433
+    },
+    {
+      "seed": 10043,
+      "target": "catheter",
+      "instruction": "Please pass the catheter",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 386
+    },
+    {
+      "seed": 10044,
+      "target": "sheath",
+      "instruction": "Hand me the sheath",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 397
+    },
+    {
+      "seed": 10045,
+      "target": "syringe",
+      "instruction": "Hand me the syringe",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 394
+    },
+    {
+      "seed": 10046,
+      "target": "scissors",
+      "instruction": "Help me with the scissors",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 409
+    },
+    {
+      "seed": 10047,
+      "target": "gauze",
+      "instruction": "Hand me the gauze",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 387
+    },
+    {
+      "seed": 10048,
+      "target": "guidewire",
+      "instruction": "Please pass the guidewire",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 399
+    },
+    {
+      "seed": 10049,
+      "target": "catheter",
+      "instruction": "Help me with the catheter",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 450
+    },
+    {
+      "seed": 10050,
+      "target": "sheath",
+      "instruction": "Please pass the sheath",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 414
+    },
+    {
+      "seed": 10051,
+      "target": "syringe",
+      "instruction": "Help me with the syringe",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 386
+    },
+    {
+      "seed": 10052,
+      "target": "scissors",
+      "instruction": "Help me with the scissors",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 392
+    },
+    {
+      "seed": 10053,
+      "target": "gauze",
+      "instruction": "Help me with the gauze",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 410
+    },
+    {
+      "seed": 10054,
+      "target": "guidewire",
+      "instruction": "Please pass the guidewire",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 436
+    },
+    {
+      "seed": 10055,
+      "target": "catheter",
+      "instruction": "Please pass the catheter",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 414
+    },
+    {
+      "seed": 10056,
+      "target": "sheath",
+      "instruction": "Hand me the sheath",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 432
+    },
+    {
+      "seed": 10057,
+      "target": "syringe",
+      "instruction": "Hand me the syringe",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 411
+    },
+    {
+      "seed": 10058,
+      "target": "scissors",
+      "instruction": "Hand me the scissors",
+      "success": true,
+      "failure_stage": null,
+      "collision": false,
+      "steps": 414
+    },
+    {
+      "seed": 10059,
+      "target": "gauze",
+      "instruction": "Help me with the gauze",
+      "success": false,
+      "failure_stage": "lift",
+      "collision": false,
+      "steps": 460
+    }
+  ]
+}
