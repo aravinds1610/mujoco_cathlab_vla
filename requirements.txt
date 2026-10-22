@@ -1,0 +1,9 @@
+# Tested with Python 3.12 on Ubuntu 24.04
+mujoco==3.3.7
+numpy>=1.26,<2
+pydantic>=2
+pyyaml>=6
+pillow>=10
+pytest>=8
+# Only for cathlab_sim/tools/extract_isaac_reference.py (reads the Isaac USD)
+usd-core>=25.0

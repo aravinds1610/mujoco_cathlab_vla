@@ -1,0 +1,11 @@
+# Large or third-party content: fetched separately (see README)
+external/
+challenge/
+*.zip
+# Team-internal brief, not for sharing
+aravind-handoff.md
+# Python / tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

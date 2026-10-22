@@ -1,0 +1,6 @@
+# Scissors: flat box 16 x 6 x 1 cm
+type: box
+size: [0.08, 0.03, 0.005]
+mass: 0.06
+friction: [0.9, 0.005, 0.0001]
+rgba: [0.55, 0.55, 0.6, 1]

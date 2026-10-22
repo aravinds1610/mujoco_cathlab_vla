@@ -1,0 +1,19 @@
+# SceneSpec (contracts.SceneSpec) for the minimal MuJoCo cathlab.
+# Paths are relative to the repo root. Randomization ranges are [min, max].
+scene_id: cathlab_minimal
+backend: mujoco
+asset: cathlab_sim/scene.py          # procedural MJCF builder
+objects:
+  syringe: configs/objects/syringe.yaml
+  catheter: configs/objects/catheter.yaml
+  sheath: configs/objects/sheath.yaml
+  guidewire: configs/objects/guidewire.yaml
+  scissors: configs/objects/scissors.yaml
+  gauze: configs/objects/gauze.yaml
+cameras: [external_camera, left_wrist_camera, right_wrist_camera]
+randomization:
+  area_x: [0.40, 0.72]               # source area on the instrument table (world m)
+  area_y: [0.08, 0.50]               # robot's left side
+  yaw: [-3.1416, 3.1416]             # object rotation about vertical (rad)
+  n_distractors: [2, 5]              # extra objects besides the target (inclusive)
+  margin: [0.015]                    # min gap between object footprints (m)
