@@ -28,6 +28,27 @@ from cathlab_sim.spec_io import REPO, load_scene_spec, resolve
 
 DEFAULT_TASK = REPO / "configs/tasks/handover.yaml"
 GAP_OBJECT_PROB = 0.7  # with a GapSpec, this share of episodes targets the gap's objects
+MIN_STD = 1e-3  # below this a column is constant (e.g. the idle right arm); its std is set to 1
+
+
+def floor_constant_stats(root: Path) -> list[str]:
+    """Set std = 1 for constant columns in meta/stats.json and return their names.
+
+    Policies normalize with (x - mean) / (std + 1e-8). For a joint that never moves, std is
+    float rounding noise (~1e-8), so normalizing turns that noise into values of +-50 and the
+    training loss is dominated by it. With std = 1 those columns normalize to ~0.
+    """
+    path = root / "meta/stats.json"
+    stats = json.loads(path.read_text())
+    fixed = []
+    for key in ("action", "observation.state"):
+        std = stats[key]["std"]
+        for j, v in enumerate(std):
+            if v < MIN_STD:
+                std[j] = 1.0
+                fixed.append(f"{key}[{NAMES[j]}]")
+    path.write_text(json.dumps(stats, indent=4))
+    return fixed
 
 
 def features() -> dict:
@@ -116,6 +137,7 @@ def run(n: int, out: Path, scene_path=None, task_path=DEFAULT_TASK, gap: GapSpec
         ds.finalize()
         be.close()
 
+    floor_constant_stats(out)
     wins = sum(e["success"] for e in extra)
     (out / "meta").mkdir(exist_ok=True)
     with open(out / "meta/cathlab_episodes_extra.jsonl", "w") as f:

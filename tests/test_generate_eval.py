@@ -67,3 +67,12 @@ def test_expert_policy_adapter_evaluates():
     report = evaluate(policy, be, load_scene_spec(), load_task(DEFAULT_TASK), [0, 1], ["guidewire"], quiet=True)
     assert report["n"] == 2 and report["successes"] == 2 and report["ci95"][1] == 1.0
     be.close()
+
+
+def test_constant_columns_have_unit_std(dataset):
+    out, _ = dataset
+    stats = json.loads((out / "meta/stats.json").read_text())
+    right_arm = [NAMES.index(f"right_joint{i}") for i in range(1, 8)]
+    for key in ("action", "observation.state"):
+        assert all(stats[key]["std"][j] == 1.0 for j in right_arm)  # the expert never moves the right arm
+        assert all(v >= 1e-3 for v in stats[key]["std"])

@@ -1,0 +1,118 @@
+{
+  "dataset": "datasets/handover_mujoco_scripted_v1",
+  "episodes": 200,
+  "frames": 91375,
+  "attempts": 236,
+  "expert_success": 200,
+  "per_object_saved": {
+    "guidewire": 48,
+    "sheath": 42,
+    "scissors": 42,
+    "gauze": 22,
+    "syringe": 46
+  },
+  "per_object_failed_at": {
+    "gauze": {
+      "lift": 19,
+      "transport": 6
+    },
+    "guidewire": {},
+    "scissors": {
+      "lift": 5
+    },
+    "sheath": {
+      "lift": 4,
+      "place": 1
+    },
+    "syringe": {
+      "lift": 1
+    }
+  },
+  "instruction_templates": {
+    "Please pass": 76,
+    "Help me with": 60,
+    "Hand me": 64
+  },
+  "unique_seeds": true,
+  "episode_seconds": {
+    "min": 14.33,
+    "50%": 15.15,
+    "max": 16.73
+  },
+  "coverage": {
+    "area": {
+      "x": [
+        0.4,
+        0.72
+      ],
+      "y": [
+        0.08,
+        0.5
+      ],
+      "yaw": [
+        -3.1416,
+        3.1416
+      ]
+    },
+    "all_cells_covered": "16/16",
+    "min_episodes_in_a_cell": 4,
+    "n_distractors": {
+      "2": 40,
+      "3": 48,
+      "4": 60,
+      "5": 52
+    },
+    "per_object": {
+      "gauze": {
+        "n": 22,
+        "cells_covered": "12/16",
+        "yaw_bins_covered": "7/8"
+      },
+      "guidewire": {
+        "n": 48,
+        "cells_covered": "16/16",
+        "yaw_bins_covered": "8/8"
+      },
+      "scissors": {
+        "n": 42,
+        "cells_covered": "15/16",
+        "yaw_bins_covered": "8/8"
+      },
+      "sheath": {
+        "n": 42,
+        "cells_covered": "14/16",
+        "yaw_bins_covered": "8/8"
+      },
+      "syringe": {
+        "n": 46,
+        "cells_covered": "14/16",
+        "yaw_bins_covered": "8/8"
+      }
+    }
+  },
+  "motion": {
+    "gripper_transitions": {
+      "2": 200
+    },
+    "episodes_with_chatter": 0,
+    "max_joint_step_rad": {
+      "median": 0.029395222663879395,
+      "max": 0.04818224161863327
+    },
+    "episodes_with_jumps": 0,
+    "tracking_error_rad": {
+      "mean": 0.01104505856987089,
+      "max": 0.014307968318462372
+    },
+    "idle_action_columns": [
+      "right_joint1",
+      "right_joint2",
+      "right_joint3",
+      "right_joint4",
+      "right_joint5",
+      "right_joint6",
+      "right_joint7",
+      "right_gripper"
+    ]
+  }
+}

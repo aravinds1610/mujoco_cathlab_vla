@@ -55,7 +55,20 @@ python -m cathlab_sim.generate --n 200 --out datasets/handover_v1 [--gap gap.jso
 python -m cathlab_sim.evaluate --policy expert --n 60 --seed0 10000 --out reports/expert_eval.json
 ```
 
-Load the dataset back with `LeRobotDataset("cathlab/handover_mujoco_scripted", root="datasets/handover_v1", video_backend="pyav")`. Use `video_backend="pyav"` unless system ffmpeg is installed for torchcodec.
+Load the dataset back with `LeRobotDataset("cathlab/handover_mujoco_scripted", root="datasets/handover_v1")`. Without system ffmpeg, add `video_backend="pyav"`.
+
+## Datasets
+
+| Dataset | What it is |
+|---|---|
+| [aravindsuresh16/cathlab_handover_mujoco_v1](https://huggingface.co/datasets/aravindsuresh16/cathlab_handover_mujoco_v1) | 200 scripted-expert episodes (91,375 frames, 30 fps), 5 objects as primitive shapes (catheter left out), 2–5 random distractors, 3 cameras at 224×224. LeRobot v3 |
+
+```python
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
+ds = LeRobotDataset("aravindsuresh16/cathlab_handover_mujoco_v1")   # downloads from the Hugging Face Hub
+```
+
+Its QA report is in `reports/qa_v1.json` and `reports/qa_v1.png` (made with `python -m cathlab_sim.dataset_qa`). Known gaps: gauze has 22 episodes against 42–48 for the others, and only the left arm moves.
 
 Minimal backend use:
 
