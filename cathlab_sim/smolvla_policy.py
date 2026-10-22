@@ -1,0 +1,57 @@
+"""A fine-tuned SmolVLA checkpoint wrapped in the team's PolicyAdapter contract.
+
+    policy = SmolVLAPolicyAdapter("outputs/smolvla_v1_3k/checkpoints/last/pretrained_model")
+    chunk = policy.predict(obs, "Hand me the syringe")   # (n_exec, 16) joint targets + grippers
+
+The checkpoint carries its own processors (camera renaming, tokenizer, normalization stats),
+so this only converts MujocoBackend observations into the dataset's format: images HWC uint8
+-> CHW float in [0, 1], state float32. SmolVLA predicts 50 actions; we execute the first
+n_exec and then re-plan from the new observation.
+"""
+import time
+from pathlib import Path
+
+import numpy as np
+import torch
+
+from cathlab_sim.contracts import PolicyAdapter, PolicyMeta
+from cathlab_sim.robot_io import CONTROL_HZ
+from cathlab_sim.scene import CAMERAS
+
+
+class SmolVLAPolicyAdapter(PolicyAdapter):
+    def __init__(self, ckpt: str | Path | None = None, n_exec: int = 25, device: str = "cuda"):
+        self.n_exec, self.device = n_exec, device
+        self.policy = None
+        if ckpt is not None:
+            self.load(str(ckpt))
+
+    def load(self, ckpt: str) -> None:
+        from lerobot.policies.factory import make_pre_post_processors
+        from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
+        self.ckpt = ckpt
+        self.policy = SmolVLAPolicy.from_pretrained(ckpt).to(self.device).eval()
+        self.pre, self.post = make_pre_post_processors(
+            self.policy.config, pretrained_path=ckpt,
+            preprocessor_overrides={"device_processor": {"device": self.device}})
+        self.params_m = sum(p.numel() for p in self.policy.parameters()) / 1e6
+
+    def reset(self) -> None:
+        """Call at the start of every episode (after backend.reset)."""
+        self.policy.reset()
+
+    def predict(self, obs: dict[str, np.ndarray], instruction: str) -> np.ndarray:
+        frame = {"observation.state": torch.from_numpy(np.asarray(obs["observation.state"], np.float32)),
+                 "task": instruction}
+        for cam in CAMERAS:
+            img = obs[f"observation.images.{cam}"]
+            frame[f"observation.images.{cam}"] = torch.from_numpy(img).permute(2, 0, 1).float() / 255.0
+        with torch.inference_mode():
+            chunk = self.policy.predict_action_chunk(self.pre(frame))   # (1, 50, 16), normalized
+            chunk = self.post(chunk)                                   # back to radians / gripper 0..1
+        return chunk[0, :self.n_exec].cpu().numpy().astype(np.float32)
+
+    def meta(self) -> PolicyMeta:
+        return PolicyMeta(name=f"smolvla:{Path(self.ckpt).parent.parent.parent.name}/{Path(self.ckpt).parent.name}",
+                          params_m=round(self.params_m, 1), chunk_size=self.n_exec,
+                          control_hz=float(CONTROL_HZ), action_dim=16)

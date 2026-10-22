@@ -1,6 +1,7 @@
 """Evaluate a PolicyAdapter on seeded episodes in MujocoBackend.
 
     python -m cathlab_sim.evaluate --policy expert --n 60 --seed0 10000 --out report.json
+    python -m cathlab_sim.evaluate --policy smolvla --ckpt outputs/<run>/checkpoints/last/pretrained_model --n 60
 
 Reports success rate with a 95% Wilson confidence interval, failure stage counts,
 per-object results, collisions, and policy latency. Use seeds disjoint from the
@@ -76,12 +77,22 @@ def evaluate(policy: PolicyAdapter, backend, scene, task, seeds, objects, quiet=
     }
 
 
+def make_policy(name: str, backend, ckpt=None) -> PolicyAdapter:
+    if name == "smolvla":
+        if ckpt is None:
+            raise SystemExit("--policy smolvla needs --ckpt <run>/checkpoints/last/pretrained_model")
+        from cathlab_sim.smolvla_policy import SmolVLAPolicyAdapter
+        return SmolVLAPolicyAdapter(ckpt)
+    from cathlab_sim.expert_policy import ScriptedExpertPolicy
+    return ScriptedExpertPolicy(backend)
+
+
 def main():
     from cathlab_sim.backend import MujocoBackend
-    from cathlab_sim.expert_policy import ScriptedExpertPolicy
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--policy", choices=["expert"], default="expert")
+    ap.add_argument("--policy", choices=["expert", "smolvla"], default="expert")
+    ap.add_argument("--ckpt", default=None, help="SmolVLA checkpoint folder (pretrained_model)")
     ap.add_argument("--n", type=int, default=60)
     ap.add_argument("--seed0", type=int, default=10000, help="first seed (keep disjoint from training seeds)")
     ap.add_argument("--objects", nargs="+", default=None)
@@ -91,8 +102,8 @@ def main():
 
     scene, task = load_scene_spec(), load_task(DEFAULT_TASK)
     objects = args.objects or [o for o in task.objects if o in scene.objects]
-    backend = MujocoBackend(render_images=args.render)
-    policy = ScriptedExpertPolicy(backend)
+    backend = MujocoBackend(render_images=args.render or args.policy != "expert")  # learned policies need images
+    policy = make_policy(args.policy, backend, args.ckpt)
     report = evaluate(policy, backend, scene, task, list(range(args.seed0, args.seed0 + args.n)), objects)
     backend.close()
     lo, hi = report["ci95"]
