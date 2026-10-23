@@ -3,32 +3,47 @@
 A learning project: fine-tune a vision-language-action model ([SmolVLA](https://huggingface.co/lerobot/smolvla_base)) for a bimanual Franka FR3 Duo in a simulated cardiac cath lab, and study **how the training data (what it covers, how varied it is, which situations it shows) changes what the model can do**. The task is *"Hand me the `<instrument>`"*: pick the named instrument from the table and place it on the tray. Every demonstration is generated in simulation, so the dataset is a variable I can change and re-measure. Evaluation runs the policy closed-loop on scenes it never saw.
 
 ```mermaid
-flowchart LR
-    subgraph GEN["1 · Generate demonstrations"]
-        direction TB
-        S["Scene + variation<br/>layouts, table colour, light,<br/>mass, friction, start pose"]
-        E["Scripted expert<br/>IK on ground-truth poses<br/>(CPU MuJoCo)"]
-        P["Physics + cameras<br/>NVIDIA Newton, parallel worlds<br/>(GPU)"]
-        S --> E --> P
+flowchart TB
+    subgraph GEN["① Generate demonstrations"]
+        direction LR
+        S["Scene variation<br/>45 layouts · 4 table colours<br/>light · mass · friction"]
+        ST["Start type<br/>home · near-target<br/>· drop-recovery"]
+        E["Scripted expert<br/>IK on true poses<br/>CPU MuJoCo"]
+        P["Run + render<br/>NVIDIA Newton<br/>parallel GPU worlds"]
+        K["Keep successes<br/>stage checks"]
+        S --> ST --> E --> P --> K
     end
-    subgraph DATA["2 · Dataset"]
-        direction TB
-        F["Keep successes only<br/>16-D joints + 3 cameras, 30 fps"]
-        L["LeRobot v3 dataset<br/>versioned on Hugging Face"]
-        F --> L
+    subgraph DATA["② Dataset · LeRobot v3 on Hugging Face"]
+        direction LR
+        D1["v1 · 384 episodes<br/>right arm, simple shapes<br/>home starts only"]
+        D2["v2 · 640 episodes<br/>both arms, surgical instruments<br/>+ near-target + drop-recovery"]
     end
-    subgraph TRAIN["3 · Fine-tune"]
-        T["SmolVLA<br/>from smolvla_base or the last checkpoint<br/>RTX 4060 8 GB laptop"]
+    subgraph TRAIN["③ Fine-tune SmolVLA · RTX 4060 8 GB"]
+        direction LR
+        T1["v1 model<br/>from smolvla_base<br/>16k steps, batch 10"]
+        T2["v2 model<br/>continue from v1<br/>batch 12"]
     end
-    subgraph EVAL["4 · Evaluate"]
-        direction TB
-        V["Closed loop in Newton<br/>held-out layouts + table colour"]
-        M["Success per tier, instrument, arm<br/>failure stage, diagnostics"]
-        V --> M
+    subgraph EVAL["④ Evaluate · closed loop in Newton"]
+        direction LR
+        V["Held-out tiers<br/>layout · table colour · both"]
+        R["Report<br/>success per tier, instrument, arm<br/>+ failure stage"]
+        W["Live viewer<br/>MuJoCo window"]
+        V --> R
+        V --> W
     end
+    T1 -- "continue training" --> T2
     GEN --> DATA --> TRAIN --> EVAL
-    EVAL -. "what failed decides what the next dataset adds" .-> GEN
+    EVAL -.-> L["Lesson → next dataset<br/>v1 stalls 6–8 cm from the object (0/6)<br/>so v2 adds near-target and drop-recovery starts"]
+
+    classDef done fill:#1f6f43,stroke:#3fb950,color:#ffffff
+    classDef note fill:#4a3b00,stroke:#d29922,color:#ffffff,stroke-dasharray:4 3
+    class L note
+    classDef todo fill:#3a3a3a,stroke:#8b949e,color:#d0d0d0,stroke-dasharray:4 3
+    class S,ST,E,P,K,D1,D2,T1,V,R,W done
+    class T2 todo
 ```
+
+<sub>Green: built and run. Grey dashed: planned (v2 fine-tuning and its evaluation). Amber: what each evaluation changes in the next dataset.</sub>
 
 ### Dataset versions and what they taught
 
