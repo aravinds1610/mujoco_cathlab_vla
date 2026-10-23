@@ -24,6 +24,8 @@ from cathlab_sim.generate import features, floor_constant_stats
 from cathlab_sim.robot_io import CONTROL_HZ
 from cathlab_sim.scene import CAMERAS
 
+PRESET = 12
+
 
 def convert(raw: Path, out: Path, repo_id: str, limit: int | None = None, version: str = "v1") -> DatasetManifest:
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
@@ -36,12 +38,18 @@ def convert(raw: Path, out: Path, repo_id: str, limit: int | None = None, versio
         saved = saved[:limit]
         last = log.index(saved[-1])
         log = log[:last + 1]  # attempts up to the last kept episode
+    from lerobot.configs.video import RGBEncoderConfig
+    # Streaming encoding skips LeRobot's per-frame PNG step (~2 min per episode otherwise). Codec stays AV1
+    # (libsvtav1, as v1 and the Siemens data); preset 12 = fastest SVT-AV1 speed level.
     ds = LeRobotDataset.create(repo_id=repo_id, fps=CONTROL_HZ, features=features(), root=out,
-                               robot_type="fr3_duo", use_videos=True)
+                               robot_type="fr3_duo", use_videos=True, streaming_encoding=True,
+                               rgb_encoder=RGBEncoderConfig(vcodec="libsvtav1", preset=PRESET), encoder_threads=4)
     index = {}
     try:
         for i, e in enumerate(saved):
-            z = np.load(raw / "episodes" / f"{e['episode']}.npz")
+            # load every array once: indexing an NpzFile re-reads and decompresses the array on each access
+            with np.load(raw / "episodes" / f"{e['episode']}.npz") as f:
+                z = {k: f[k] for k in f.files}
             task = str(z["task"])
             for t in range(len(z["action"])):
                 frame = {"observation.state": z["state"][t], "action": z["action"][t],

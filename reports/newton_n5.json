@@ -1,0 +1,75 @@
+{
+  "worlds": 20,
+  "cpu_processes": 12,
+  "sim2sim": {
+    "configs": 60,
+    "per_object": {
+      "bottle": {
+        "cpu": "20/20",
+        "newton": "20/20",
+        "median_final_pos_diff_mm": 1.31,
+        "max_final_pos_diff_mm": 2.12
+      },
+      "vial": {
+        "cpu": "20/20",
+        "newton": "20/20",
+        "median_final_pos_diff_mm": 0.05,
+        "max_final_pos_diff_mm": 0.98
+      },
+      "syringe": {
+        "cpu": "20/20",
+        "newton": "20/20",
+        "median_final_pos_diff_mm": 0.06,
+        "max_final_pos_diff_mm": 0.79
+      }
+    },
+    "agreement_rate": 1.0,
+    "disagreements": [],
+    "frames": 27386,
+    "cpu_pool_plan_and_exec_s": 5.7,
+    "newton_exec_s": 39.2,
+    "newton_world_frames_per_s_no_render": 698.7
+  },
+  "tiers_newton": {
+    "in_distribution": {
+      "bottle": "10/10",
+      "vial": "10/10",
+      "syringe": "10/10",
+      "all": 1.0,
+      "cpu_all": 1.0,
+      "newton_failure_stages": {}
+    },
+    "held_out_layout": {
+      "bottle": "10/10",
+      "vial": "10/10",
+      "syringe": "10/10",
+      "all": 1.0,
+      "cpu_all": 1.0,
+      "newton_failure_stages": {}
+    },
+    "held_out_obj_color": {
+      "bottle": "10/10",
+      "vial": "10/10",
+      "syringe": "10/10",
+      "all": 1.0,
+      "cpu_all": 1.0,
+      "newton_failure_stages": {}
+    },
+    "held_out_table_color": {
+      "bottle": "10/10",
+      "vial": "10/10",
+      "syringe": "10/10",
+      "all": 1.0,
+      "cpu_all": 1.0,
+      "newton_failure_stages": {}
+    },
+    "all_held_out": {
+      "bottle": "10/10",
+      "vial": "10/10",
+      "syringe": "10/10",
+      "all": 1.0,
+      "cpu_all": 1.0,
+      "newton_failure_stages": {}
+    }
+  }
+}

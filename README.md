@@ -140,4 +140,6 @@ Findings:
 - Meshes: CC BY 4.0 from Sketchfab via Objaverse, authors listed in `assets/meshes/ATTRIBUTION.md`.
 - Base model: [SmolVLA](https://huggingface.co/lerobot/smolvla_base) via [LeRobot](https://github.com/huggingface/lerobot).
 - Robot models: [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie), `franka_fr3_v2` and `robotiq_2f85`. Each model carries its own licence in its folder.
+- Physics and rendering for the Newton track: [Newton](https://github.com/newton-physics/newton) (Apache-2.0), [MuJoCo](https://github.com/google-deepmind/mujoco) and [MuJoCo-Warp](https://github.com/google-deepmind/mujoco_warp) (Apache-2.0).
+- `cathlab_sim/newton/variation.py` is copied unchanged from the team repo (Rakeshdharan/vla-cathlab-companion@9deeb21, `dataengine/variation.py`).
 - Approach inspired by [ContactPilot](https://github.com/VivekSai07/ContactPilot) and [franka-vla-generalization](https://github.com/VivekSai07/franka-vla-generalization). No code is copied from either.
