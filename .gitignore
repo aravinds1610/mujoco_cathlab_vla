@@ -17,3 +17,4 @@ reports/*.log
 MUJOCO_LOG.TXT
 # Training runs (checkpoints, large)
 outputs/
+reports/*.gif
