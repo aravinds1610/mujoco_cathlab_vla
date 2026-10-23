@@ -86,6 +86,11 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
   over_cap: true`, original log kept as `episodes_extra.jsonl.bak`). The partial output was moved to the session
   scratchpad, not deleted. Restarted conversion counts 640.
 
+- 22:45 **Change of plan (owner):** the team is presenting tomorrow. After conversion: publish the v2 dataset to HF
+  (`aravindsuresh16/cathlab_fr3_instruments_v1`, CC BY-NC 4.0), link it in the README, push everything. **Phases 4–5
+  (fine-tuning, evaluation) are deferred** to a later session; the commands below still apply. README now opens with
+  the project framing (learning SmolVLA fine-tuning and how the dataset shapes the policy) and a pipeline flowchart.
+
 ## Handoff status (read this first in the new chat)
 
 **State at 22:31, 2026-10-23.** Repo `main` is ahead of `origin/main` with local commits only (not pushed).
@@ -95,9 +100,9 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
 | 1 Assets and scene | ✅ done, passes (`reports/v2_assets_check.json`) |
 | 2 Expert, both arms | ✅ done, 60/60 Newton + 60/60 CPU (`reports/v2_expert_check.json`) |
 | 3 Data | 🔄 generation ✅ (270 home `v2_home`, 270 near `v2_near`, 100 drop-recovery `v2_drop`, all in `datasets/newton_raw/`); **conversion running** (started 22:31, ~30 min) → `datasets/cathlab_fr3_instruments_v1` |
-| 4 Train | ⏳ not started |
+| 4 Train | ⏸ deferred (owner, 22:45); 100-step test first, then batch 12 from the v1 16k checkpoint |
 | 5 Evaluate | ⏳ harness ready: `watch.py --task v2 --tiers ... --report` (expert 3/3 through it) |
-| 6 Wrap up | ⏳ not started |
+| 6 Wrap up | 🔄 dataset upload + README + push after the conversion |
 
 **Check or stop the running conversion:**
 ```bash
