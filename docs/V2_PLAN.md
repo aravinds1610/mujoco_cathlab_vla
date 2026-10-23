@@ -90,6 +90,9 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
   (`aravindsuresh16/cathlab_fr3_instruments_v1`, CC BY-NC 4.0), link it in the README, push everything. **Phases 4–5
   (fine-tuning, evaluation) are deferred** to a later session; the commands below still apply. README now opens with
   the project framing (learning SmolVLA fine-tuning and how the dataset shapes the policy) and a pipeline flowchart.
+- 23:00 Conversion crashed at 273/640: 4 near-start `.npz` files were truncated (all written 22:06:42, when the
+  32-world run was stopped mid-write). Moved them to the scratchpad, regenerated grid positions 92–95 (identical
+  names, start poses and frame counts), and `convert.py` now opens every raw file before encoding. Restarted.
 
 ## Handoff status (read this first in the new chat)
 

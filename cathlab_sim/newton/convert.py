@@ -52,6 +52,16 @@ def convert(raw: Path | list[Path], out: Path, repo_id: str, limit: int | None =
         saved = saved[:limit]
         last = log.index(saved[-1])
         log = log[:last + 1]  # attempts up to the last kept episode
+    # every file must open before any encoding starts (a generation run stopped mid-write leaves a truncated .npz)
+    bad = []
+    for e in saved:
+        try:
+            with np.load(Path(e["_raw"]) / "episodes" / f"{e['episode']}.npz") as f:
+                f.files
+        except Exception as err:  # noqa: BLE001 - report every unreadable file, then stop
+            bad.append(f"{e['_raw']}/episodes/{e['episode']}.npz: {type(err).__name__}")
+    if bad:
+        raise RuntimeError(f"{len(bad)} unreadable raw episodes:\n" + "\n".join(bad))
     from lerobot.configs.video import RGBEncoderConfig
     # Streaming encoding skips LeRobot's per-frame PNG step (~2 min per episode otherwise). Codec stays AV1
     # (libsvtav1, as v1 and the Siemens data); preset 12 = fastest SVT-AV1 speed level.
