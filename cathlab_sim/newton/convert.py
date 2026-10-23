@@ -98,12 +98,13 @@ def convert(raw: Path | list[Path], out: Path, repo_id: str, limit: int | None =
     return manifest
 
 
-def push(out: Path, repo_id: str, tag: str):
+def push(out: Path, repo_id: str, tag: str, license: str = "apache-2.0", description: str = ""):
     from huggingface_hub import HfApi
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
     ds = LeRobotDataset(repo_id, root=out)
     # uploads the whole root (incl. manifest.yaml, meta/episodes_extra.jsonl) and tags the codebase version (v3.0)
-    ds.push_to_hub(tags=["fr3_duo", "newton", "mujoco-warp", "synthetic"], private=False, tag_version=True)
+    ds.push_to_hub(tags=["fr3_duo", "newton", "mujoco-warp", "synthetic"], private=False, tag_version=True,
+                   license=license, **({"dataset_description": description} if description else {}))
     api = HfApi()
     if tag:
         api.create_tag(repo_id, tag=tag, repo_type="dataset")
@@ -123,10 +124,14 @@ def main():
     ap.add_argument("--tag", default="v1")
     ap.add_argument("--scene-id", default="cathlab_fr3_newton")
     ap.add_argument("--notes", default="")
+    ap.add_argument("--license", default="apache-2.0", help="HF licence id for the dataset card")
+    ap.add_argument("--description", default="", help="dataset card text (markdown), e.g. asset credits")
+    ap.add_argument("--skip-convert", action="store_true", help="push an already converted --out folder")
     args = ap.parse_args()
-    convert(args.raw, args.out, args.repo_id, args.limit, args.version, args.scene_id, args.notes)
+    if not args.skip_convert:
+        convert(args.raw, args.out, args.repo_id, args.limit, args.version, args.scene_id, args.notes)
     if args.push:
-        push(args.out, args.repo_id, args.tag)
+        push(args.out, args.repo_id, args.tag, args.license, args.description)
 
 
 if __name__ == "__main__":

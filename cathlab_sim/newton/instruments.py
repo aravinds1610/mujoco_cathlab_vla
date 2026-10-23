@@ -225,9 +225,13 @@ class V2Task:
     tray_center = TRAY_CENTER
     tray_half = (TRAY_INNER_HALF[0] - 0.01, TRAY_INNER_HALF[1] - 0.01)
     tray_floor_top = TRAY_FLOOR
+    tray_outer_half = (0.2135, 0.1515)  # plate outline (427 x 303 mm)
 
     def __init__(self):
         self.layouts = v2_layouts()
+        # seed -> {"poses": {name: (pos, quat_wxyz)}, "side": arm}: drop-recovery episodes start from where a
+        # dropped instrument came to rest instead of the layout
+        self.start_override = {}
         self.grasp_local = {n: np.array(load_spec(n)["grasp"]["point"]) for n in INSTRUMENTS}
 
     def build_spec(self) -> mujoco.MjSpec:
@@ -247,6 +251,8 @@ class V2Task:
         for name, (x, y, yaw) in self.layouts[cfg.layout_id].items():
             poses[name] = (np.array([x + jitter[0], y + jitter[1], TABLE_TOP + 0.001]),
                            np.array([math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]))
+        if cfg.seed in self.start_override:
+            poses = {n: (np.array(p), np.array(q)) for n, (p, q) in self.start_override[cfg.seed]["poses"].items()}
         return {"poses": poses, "rgba": {"table": TABLE_COLORS[cfg.table_color_id]}, "mass_scale": cfg.mass_scale,
                 "friction": cfg.friction, "light_gain": cfg.light_intensity * kelvin_to_rgb(cfg.light_temp_k)}
 
@@ -273,6 +279,8 @@ class V2Task:
         return 0.0  # body origin = bottom of the laid mesh
 
     def side(self, cfg) -> str:
+        if cfg.seed in self.start_override:
+            return self.start_override[cfg.seed]["side"]
         return "left" if self.layouts[cfg.layout_id][cfg.object][1] > 0 else "right"
 
     def instruction(self, cfg) -> str:
