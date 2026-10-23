@@ -58,6 +58,7 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
   fallback after one attempt instead of two. Train grid: 45 layouts × 3 targets × 2 table colours = 270.
 - 21:44 Phase 3 started: 270 home (seed 0) + 270 near-start (seed 1) episodes.
 - 21:46 **Paused for handoff to a new chat** (owner's request). Phases 1–2 done; phase 3 generation running unattended.
+- 22:00 Resumed. `watch.py` now does v2 evaluation (`--task v2 --tiers ... --report`); expert 3/3 held-out through it, v1 1/1. Variation check (owner asked): varies = object x/y + full yaw (45 layouts, distractors too), table colour (4+1), light intensity and colour temperature, mass, friction, start pose (half near-target, random); **fixed** = place pose and tray position, light direction, camera poses, home pose, instrument textures. Owner: train on the current data. Removed outdated docs (STATUS.md, AR2_robot_model.md).
 
 ## Handoff status (read this first in the new chat)
 
