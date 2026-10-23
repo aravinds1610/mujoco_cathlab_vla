@@ -1,4 +1,4 @@
-"""Watch a trained policy (or the expert) do the right-arm task live.
+"""Watch a trained policy (or the expert) do the task live, or evaluate it headless over tiers.
 
 Physics and the policy's camera images come from Newton (what the model was trained on); every frame
 is mirrored into a MuJoCo viewer window so you can watch. Run in .venv-eval (Newton + LeRobot):
@@ -6,10 +6,13 @@ is mirrored into a MuJoCo viewer window so you can watch. Run in .venv-eval (New
     python -m cathlab_sim.newton.watch --ckpt outputs/smolvla_newton_v1_16k/checkpoints/last/pretrained_model
     python -m cathlab_sim.newton.watch --expert                     # scripted expert, for comparison
     python -m cathlab_sim.newton.watch --ckpt ... --say vial        # swap test: ask for another object
+    python -m cathlab_sim.newton.watch --task v2 --ckpt ... --no-viewer --episodes 6 \
+        --tiers in_distribution held_out_layout held_out_table_color all_held_out --report reports/eval.json
 
-Scenes come from the team's held-out tier (unseen layouts, palette and table colour). Options:
---episodes 3 --tier all_held_out --speed 1.0 --no-viewer. Close the viewer window to stop.
+Scenes come from the held-out tier (unseen layouts, palette and table colour). Options:
+--task v1|v2 --episodes 3 --tiers all_held_out --speed 1.0 --no-viewer --report. Close the viewer window to stop.
 """
+import json
 import argparse
 import os
 import time
@@ -18,7 +21,7 @@ os.environ.setdefault("MUJOCO_GL", "glfw")
 import mujoco
 import numpy as np
 
-from cathlab_sim.newton.runner import INSTRUCTIONS
+from cathlab_sim.newton.runner import make_task
 from cathlab_sim.newton.task_stages import StageTracker
 from cathlab_sim.robot_io import CONTROL_HZ
 from cathlab_sim.scene import CAMERAS
@@ -40,10 +43,12 @@ class Mirror:
             if idx:
                 self.pairs.append((m.jnt_qposadr[j], q_start[idx[0]], m.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE))
         self.geoms = {n: [g for g in range(m.ngeom) if m.geom_bodyid[g] == m.body(n).id]
-                      for n in ("bottle", "vial", "syringe")}
+                      for n in sim.task.objects}
 
     def colours(self, params):
         for n, gs in self.geoms.items():
+            if n not in params["rgba"]:  # v2 instruments keep their textures
+                continue
             for g in gs:
                 self.model.geom_rgba[g] = params["rgba"][n]
         self.model.geom_rgba[self.model.geom("table").id] = params["rgba"]["table"]
@@ -63,25 +68,29 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ckpt", default=None, help="SmolVLA pretrained_model folder")
     ap.add_argument("--expert", action="store_true", help="run the scripted expert instead")
-    ap.add_argument("--tier", default="all_held_out")
+    ap.add_argument("--task", default="v1", choices=["v1", "v2"])
+    ap.add_argument("--tiers", nargs="+", default=["all_held_out"])
     ap.add_argument("--seed0", type=int, default=100_000)
     ap.add_argument("--episodes", type=int, default=3)
     ap.add_argument("--say", default=None, help="name this object in the instruction (swap test)")
     ap.add_argument("--speed", type=float, default=1.0)
     ap.add_argument("--blend", type=int, default=10, help="cross-fade frames at chunk switches (0 = off)")
     ap.add_argument("--no-viewer", action="store_true")
+    ap.add_argument("--report", default=None, help="write per-episode results and a summary to this JSON file")
     args = ap.parse_args()
     assert args.expert or args.ckpt, "give --ckpt or --expert"
 
     from cathlab_sim.newton.scene import NewtonTaskSim
-    from cathlab_sim.newton.task_scene import episode_params
-    from cathlab_sim.newton.variation import eval_configs
-    sim = NewtonTaskSim(1)
-    # eval_configs lists object-major (all bottle seeds, then vial, then syringe): cycle the objects,
+    task = make_task(args.task)
+    sim = NewtonTaskSim(1, task=task)
+    # eval_configs lists object-major (all seeds of the first object, then the next ...): cycle the objects,
     # each episode on its own seed
-    n = args.episodes
-    every = eval_configs(sim.variation, args.tier, list(range(args.seed0, args.seed0 + n)))
-    cfgs = [every[(k % 3) * n + k] for k in range(n)]
+    n, k_obj = args.episodes, len(getattr(task, "targets", task.objects))
+    cfgs = []
+    for tier in args.tiers:
+        every = task.eval_configs(tier, list(range(args.seed0, args.seed0 + n)))
+        cfgs += [every[(k % k_obj) * n + k] for k in range(n)]
+    results = []
     policy = None
     if not args.expert:
         from cathlab_sim.smolvla_policy import SmolVLAPolicyAdapter
@@ -91,18 +100,18 @@ def main():
     try:
         for ep, cfg in enumerate(cfgs):
             sim.reset([cfg])
-            said = args.say or cfg.object
-            instruction = INSTRUCTIONS[cfg.seed % 3].format(object=said)
-            mirror.colours(episode_params(sim.variation, cfg))
+            instruction = task.instruction(cfg.model_copy(update={"object": args.say}) if args.say else cfg)
+            mirror.colours(task.episode_params(cfg))
             mirror.sync(sim)
             if viewer is None and not args.no_viewer:
                 import mujoco.viewer
                 viewer = mujoco.viewer.launch_passive(mirror.model, mirror.data)
                 viewer.cam.lookat[:] = [0.50, 0.0, 0.95]
                 viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 1.7, 180, -35
-            print(f"episode {ep + 1}: layout {cfg.layout_id}, target {cfg.object}, \"{instruction}\"", flush=True)
+            print(f"episode {ep + 1}: {cfg.tier}, layout {cfg.layout_id}, {sim.sides[0]} arm, target {cfg.object}, "
+                  f"\"{instruction}\"", flush=True)
             if args.expert:
-                plan = _expert_plan(cfg)
+                plan = _expert_plan(cfg, args.task)
             tracker, frames, success, t_policy = StageTracker(1), 0, False, []
             while frames < MAX_FRAMES and not success:
                 if args.expert:
@@ -133,16 +142,37 @@ def main():
             extra = f", policy {1000 * np.mean(t_policy):.0f} ms/call" if t_policy else ""
             print(f"  -> {'SUCCESS' if success else 'failed at ' + str(stage)} after {frames / CONTROL_HZ:.1f} s{extra}",
                   flush=True)
+            results.append({"tier": cfg.tier, "layout": cfg.layout_id, "object": cfg.object, "side": sim.sides[0],
+                            "seed": cfg.seed, "instruction": instruction, "success": success, "failure_stage": stage,
+                            "seconds": round(frames / CONTROL_HZ, 1)})
             if viewer is not None:
                 time.sleep(1.5)
     finally:
         if viewer is not None:
             viewer.close()
+        if args.report and results:
+            _write_report(args, results)
 
 
-def _expert_plan(cfg):
+def _write_report(args, results):
+    """Success counts per tier, object and arm, plus every episode."""
+    def rate(key):
+        out = {}
+        for r in results:
+            ok, n = out.get(r[key], (0, 0))
+            out[r[key]] = (ok + r["success"], n + 1)
+        return {k: f"{ok}/{n}" for k, (ok, n) in out.items()}
+    report = {"ckpt": args.ckpt, "expert": args.expert, "task": args.task, "blend": args.blend,
+              "total": f"{sum(r['success'] for r in results)}/{len(results)}",
+              "per_tier": rate("tier"), "per_object": rate("object"), "per_side": rate("side"), "episodes": results}
+    with open(args.report, "w") as f:
+        json.dump(report, f, indent=2)
+    print("report", args.report, "| total", report["total"], "|", report["per_tier"], flush=True)
+
+
+def _expert_plan(cfg, task_name="v1"):
     from cathlab_sim.newton.runner import _init_worker, plan_one
-    _init_worker()
+    _init_worker(task_name=task_name)
     return plan_one({"cfg": cfg.model_dump()})["actions"]
 
 
