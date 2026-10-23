@@ -39,6 +39,10 @@ flowchart LR
 
 Each later step gets its own row: what changed in the data, and the effect on held-out success.
 
+![v2 dataset: first frame of 16 episodes (home, near-target and drop-recovery starts)](reports/v2_dataset_variety.png)
+
+*v2 first frames: home starts (rows 1–2), near-target starts, drop-recovery starts (row 4). Table colour, light, layout, acting arm and instrument vary per episode.*
+
 ## Datasets and models
 
 | Dataset / model | Contents |
