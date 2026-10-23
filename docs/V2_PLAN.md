@@ -93,19 +93,23 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
 - 23:00 Conversion crashed at 273/640: 4 near-start `.npz` files were truncated (all written 22:06:42, when the
   32-world run was stopped mid-write). Moved them to the scratchpad, regenerated grid positions 92–95 (identical
   names, start poses and frame counts), and `convert.py` now opens every raw file before encoding. Restarted.
+- 23:15 **Phase 3 done, dataset published:** https://huggingface.co/datasets/aravindsuresh16/cathlab_fr3_instruments_v1
+  (640 episodes, 230,558 frames; tags v1, v3.0; licence cc-by-nc-4.0; checked from the Hub). Variety grid
+  `reports/v2_dataset_variety.png`. `watch.py --task v2 --expert --start home|near|drop` replays the recorded episodes
+  live (6/6 succeeded headless).
 
 ## Handoff status (read this first in the new chat)
 
-**State at 22:31, 2026-10-23.** Repo `main` is ahead of `origin/main` with local commits only (not pushed).
+**State at 23:15, 2026-10-23.** Repo `main` is ahead of `origin/main` with local commits only (not pushed).
 
 | Phase | State |
 |---|---|
 | 1 Assets and scene | ✅ done, passes (`reports/v2_assets_check.json`) |
 | 2 Expert, both arms | ✅ done, 60/60 Newton + 60/60 CPU (`reports/v2_expert_check.json`) |
-| 3 Data | 🔄 generation ✅ (270 home `v2_home`, 270 near `v2_near`, 100 drop-recovery `v2_drop`, all in `datasets/newton_raw/`); **conversion running** (started 22:31, ~30 min) → `datasets/cathlab_fr3_instruments_v1` |
+| 3 Data | ✅ 640 episodes → `datasets/cathlab_fr3_instruments_v1`, published on HF (`aravindsuresh16/cathlab_fr3_instruments_v1`, v1) |
 | 4 Train | ⏸ deferred (owner, 22:45); 100-step test first, then batch 12 from the v1 16k checkpoint |
 | 5 Evaluate | ⏳ harness ready: `watch.py --task v2 --tiers ... --report` (expert 3/3 through it) |
-| 6 Wrap up | 🔄 dataset upload + README + push after the conversion |
+| 6 Wrap up | ✅ dataset published, README linked, pushed (model: after phases 4–5) |
 
 **Check or stop the running conversion:**
 ```bash

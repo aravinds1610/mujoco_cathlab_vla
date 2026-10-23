@@ -68,6 +68,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ckpt", default=None, help="SmolVLA pretrained_model folder")
     ap.add_argument("--expert", action="store_true", help="run the scripted expert instead")
+    ap.add_argument("--start", choices=["home", "near", "drop"], default=None,
+                    help="expert only: replay the recorded training-grid episodes of this start type "
+                         "(same configs, jitter and start poses as the dataset)")
     ap.add_argument("--task", default="v1", choices=["v1", "v2"])
     ap.add_argument("--tiers", nargs="+", default=["all_held_out"])
     ap.add_argument("--seed0", type=int, default=100_000)
@@ -86,10 +89,15 @@ def main():
     # eval_configs lists object-major (all seeds of the first object, then the next ...): cycle the objects,
     # each episode on its own seed
     n, k_obj = args.episodes, len(getattr(task, "targets", task.objects))
-    cfgs = []
-    for tier in args.tiers:
-        every = task.eval_configs(tier, list(range(args.seed0, args.seed0 + n)))
-        cfgs += [every[(k % k_obj) * n + k] for k in range(n)]
+    cfgs, jits = [], None
+    if args.start:
+        assert args.expert, "--start replays the expert's recorded episodes"
+        from cathlab_sim.newton.runner import _jobs
+        cfgs, jits = _jobs(0, n, {"home": 0, "near": 1, "drop": 2}[args.start], task)
+    else:
+        for tier in args.tiers:
+            every = task.eval_configs(tier, list(range(args.seed0, args.seed0 + n)))
+            cfgs += [every[(k % k_obj) * n + k] for k in range(n)]
     results = []
     policy = None
     if not args.expert:
@@ -99,7 +107,17 @@ def main():
     viewer = None
     try:
         for ep, cfg in enumerate(cfgs):
-            sim.reset([cfg])
+            jit = jits[ep] if jits is not None else np.zeros(2)
+            arm_q = None
+            if args.expert:
+                p = _expert_plan(cfg, args.task, jit, args.start)
+                if p["actions"] is None:
+                    print(f"episode {ep + 1}: no usable drop start, skipped", flush=True)
+                    continue
+                plan, arm_q = p["actions"], p["arm_q"]
+                if p.get("drop"):  # the dropped instrument's resting poses become this episode's start
+                    task.start_override[cfg.seed] = {"poses": p["drop"]["poses"], "side": p["drop"]["side"]}
+            sim.reset([cfg], jitters=[jit], arm_qs=[arm_q])
             instruction = task.instruction(cfg.model_copy(update={"object": args.say}) if args.say else cfg)
             mirror.colours(task.episode_params(cfg))
             mirror.sync(sim)
@@ -108,10 +126,8 @@ def main():
                 viewer = mujoco.viewer.launch_passive(mirror.model, mirror.data)
                 viewer.cam.lookat[:] = [0.50, 0.0, 0.95]
                 viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 1.7, 180, -35
-            print(f"episode {ep + 1}: {cfg.tier}, layout {cfg.layout_id}, {sim.sides[0]} arm, target {cfg.object}, "
-                  f"\"{instruction}\"", flush=True)
-            if args.expert:
-                plan = _expert_plan(cfg, args.task)
+            print(f"episode {ep + 1}: {args.start or cfg.tier} start, layout {cfg.layout_id}, {sim.sides[0]} arm, "
+                  f"target {cfg.object}, \"{instruction}\"", flush=True)
             tracker, frames, success, t_policy = StageTracker(1), 0, False, []
             while frames < MAX_FRAMES and not success:
                 if args.expert:
@@ -170,10 +186,18 @@ def _write_report(args, results):
     print("report", args.report, "| total", report["total"], "|", report["per_tier"], flush=True)
 
 
-def _expert_plan(cfg, task_name="v1"):
+_planner_ready = False
+
+
+def _expert_plan(cfg, task_name="v1", jitter=(0.0, 0.0), start=None):
+    """Plan on the CPU twin, as the generator does (near/drop start poses are sampled deterministically per seed)."""
+    global _planner_ready
     from cathlab_sim.newton.runner import _init_worker, plan_one
-    _init_worker(task_name=task_name)
-    return plan_one({"cfg": cfg.model_dump()})["actions"]
+    if not _planner_ready:
+        _init_worker(task_name=task_name)
+        _planner_ready = True
+    return plan_one({"cfg": cfg.model_dump(), "jitter": list(map(float, jitter)),
+                     "near": start == "near", "drop": start == "drop"})
 
 
 if __name__ == "__main__":
