@@ -27,12 +27,26 @@ from cathlab_sim.scene import CAMERAS
 PRESET = 12
 
 
-def convert(raw: Path, out: Path, repo_id: str, limit: int | None = None, version: str = "v1") -> DatasetManifest:
+def _merge_logs(raws: list[Path]) -> list[dict]:
+    """Attempt logs of one or more raw folders, interleaved round-robin (any first-N slice mixes them).
+    Each entry remembers its folder in "_raw"."""
+    logs = []
+    for raw in raws:
+        logs.append([{**json.loads(line), "_raw": str(raw)} for line in (raw / "meta/episodes_extra.jsonl").read_text().splitlines()])
+    out = []
+    for i in range(max(map(len, logs))):
+        out += [lg[i] for lg in logs if i < len(lg)]
+    return out
+
+
+def convert(raw: Path | list[Path], out: Path, repo_id: str, limit: int | None = None, version: str = "v1",
+            scene_id: str = "cathlab_fr3_newton", notes: str = "") -> DatasetManifest:
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
     if out.exists():
         raise FileExistsError(f"{out} exists; datasets are versioned, never overwritten")
-    log = [json.loads(line) for line in (raw / "meta/episodes_extra.jsonl").read_text().splitlines()]
+    raws = [Path(r) for r in (raw if isinstance(raw, (list, tuple)) else [raw])]
+    log = _merge_logs(raws)
     saved = [e for e in log if e["episode"]]
     if limit is not None:
         saved = saved[:limit]
@@ -48,7 +62,7 @@ def convert(raw: Path, out: Path, repo_id: str, limit: int | None = None, versio
     try:
         for i, e in enumerate(saved):
             # load every array once: indexing an NpzFile re-reads and decompresses the array on each access
-            with np.load(raw / "episodes" / f"{e['episode']}.npz") as f:
+            with np.load(Path(e["_raw"]) / "episodes" / f"{e['episode']}.npz") as f:
                 z = {k: f[k] for k in f.files}
             task = str(z["task"])
             for t in range(len(z["action"])):
@@ -66,18 +80,19 @@ def convert(raw: Path, out: Path, repo_id: str, limit: int | None = None, versio
     fixed = floor_constant_stats(out)
     with open(out / "meta/episodes_extra.jsonl", "w") as f:
         for e in log:
-            f.write(json.dumps({"episode_index": index.get(e["episode"]), **e}) + "\n")
+            f.write(json.dumps({"episode_index": index.get(e["episode"]),
+                                **{k: v for k, v in e.items() if k != "_raw"}}) + "\n")
     per_obj = {o: f"{sum(e['success'] for e in log if e['object'] == o)}/{sum(e['object'] == o for e in log)}"
-               for o in ("bottle", "vial", "syringe")}
+               for o in sorted({e["object"] for e in log})}
     engines = sorted({e["engine"] for e in log})
     manifest = DatasetManifest(
         dataset_id=repo_id, version=version, source="scripted", task_id="hand_me_object",
-        scene_id="cathlab_fr3_newton", n_episodes=len(saved), created_by=getpass.getuser(),
+        scene_id=scene_id, n_episodes=len(saved), created_by=getpass.getuser(),
         quality_score=round(sum(e["success"] for e in log) / max(len(log), 1), 4),
-        notes=(f"FR3 Duo, right arm, scripted IK expert (ground-truth poses) planned on CPU MuJoCo; physics + "
-               f"rendering engine {engines}. Team variation grid (configs/variation/cathlab_fr3_newton.yaml), "
-               f"configs in generation_order. attempts={len(log)}; expert success per object {per_obj}. "
-               f"No-op frames dropped (handoff A6); constant-column std set to 1: {len(fixed)} columns."))
+        notes=(notes or "FR3 Duo, right arm, scripted IK expert (ground-truth poses) planned on CPU MuJoCo. "
+               "Team variation grid (configs/variation/cathlab_fr3_newton.yaml), configs in generation_order. ")
+        + f"Physics + rendering engine {engines}; attempts={len(log)}; expert success per object {per_obj}. "
+        f"No-op frames dropped (handoff A6); idle-column stats widened: {len(fixed)} columns.")
     (out / "manifest.yaml").write_text(yaml.safe_dump(manifest.model_dump(), sort_keys=False))
     print(f"wrote {len(saved)} episodes -> {out}")
     return manifest
@@ -99,15 +114,17 @@ def push(out: Path, repo_id: str, tag: str):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--raw", type=Path, required=True)
+    ap.add_argument("--raw", type=Path, nargs="+", required=True, help="one or more raw folders (interleaved)")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--repo-id", default="aravindsuresh16/cathlab_fr3_newton_v1")
     ap.add_argument("--limit", type=int, default=None, help="first N saved episodes (generation order)")
     ap.add_argument("--version", default="v1")
     ap.add_argument("--push", action="store_true")
     ap.add_argument("--tag", default="v1")
+    ap.add_argument("--scene-id", default="cathlab_fr3_newton")
+    ap.add_argument("--notes", default="")
     args = ap.parse_args()
-    convert(args.raw, args.out, args.repo_id, args.limit, args.version)
+    convert(args.raw, args.out, args.repo_id, args.limit, args.version, args.scene_id, args.notes)
     if args.push:
         push(args.out, args.repo_id, args.tag)
 
