@@ -2,7 +2,7 @@
 
 *Aravind, 2026-10-23. Newton 1.6.0, MuJoCo-Warp 3.12.0, MuJoCo 3.12.0, Warp 1.18.0. Laptop: i9-14900HX (32 threads), RTX 4060 Laptop 8 GB.*
 
-**Dataset:** [`aravindsuresh16/cathlab_fr3_newton_v1`](https://huggingface.co/datasets/aravindsuresh16/cathlab_fr3_newton_v1), tags `v1` and `v3.0` (LeRobot v3). 384 episodes, one per cell of the train grid, all 3 objects balanced.
+**Dataset:** [`aravindsuresh16/cathlab_fr3_newton_v1`](https://huggingface.co/datasets/aravindsuresh16/cathlab_fr3_newton_v1), tags `v1` and `v3.0` (LeRobot v3). 384 episodes (159,568 frames), one per cell of the train grid, all 3 objects balanced. Verified from the Hub: `LeRobotDataset(repo, revision="v1")` loads `action (16,)`, `observation.state (16,)`, 3 images `(3, 224, 224)`, fps 30, `robot_type fr3_duo`, `codebase_version v3.0`.
 
 ## Summary
 
@@ -136,10 +136,10 @@ These tiers test the *expert*, which uses ground-truth poses, so colour tiers ca
 | Bottle size | Ø77 × 152 mm, 0.30 kg (A2). The team yaml says 250 mm tall | A2 is the decision |
 | Bottle grasp | Top grasp across the body, pads 3 cm below the top | 100 % in both engines; keeps the wrist away from the table |
 | Upright cylinders | Hidden 2 mm box foot | MuJoCo-Warp: one contact point for cylinder–box |
-| World count | 32 for the extra seeds, 16 for the 384 grid | 32 ≈ the GPU's compute limit; VRAM is not the limit |
+| World count | 16 for the 384 grid; 32 measured as the faster setting | 32 ≈ the GPU's compute limit; VRAM is not the limit |
 | Extra objects (sheath etc.) | Not added | Optional in A2; the grid uses only the 3 team objects |
 | Head-camera jitter | Not added | Optional in N3 |
-| Extra seeds (v1.1) | Seeds 1, 2: team code resamples mass/friction/light; ±1 cm xy shift of the whole layout | "More episodes" in N4 |
+| "More episodes" (N4 step 3) | Generated (seeds 1, 2 = resampled mass/friction/light and a ±1 cm layout shift; 768/768 succeeded) but **not published**: the dataset stays at the 384-episode grid | Owner's decision. `runner generate --seed 1/2` reproduces them |
 
 ## 8. Reproduce
 
