@@ -14,6 +14,8 @@ from lerobot.datasets.lerobot_dataset import LeRobotDataset
 ds = LeRobotDataset("aravindsuresh16/cathlab_fr3_newton_v1", revision="v1")
 ```
 
+For quantile-normalized policies (π0.5), use `revision="v1.0.1"`: same episodes, but the idle left arm's `q01`/`q99` are widened so its sim jitter isn't amplified.
+
 ## Status
 
 | Track | State | Details |

@@ -76,3 +76,20 @@ def test_constant_columns_have_unit_std(dataset):
     for key in ("action", "observation.state"):
         assert all(stats[key]["std"][j] == 1.0 for j in right_arm)  # the expert never moves the right arm
         assert all(v >= 1e-3 for v in stats[key]["std"])
+
+
+def test_idle_columns_get_wide_quantiles(tmp_path):
+    """pi0.5 normalizes with q01/q99: idle-arm jitter must not be amplified (q99 - q01 widened to 2)."""
+    from cathlab_sim.generate import floor_constant_stats
+    n = len(NAMES)
+    jitter = {"min": [0.0] * n, "max": [1.0] * n, "mean": [0.5] * n, "count": [10],
+              "std": [1e-4] + [0.3] * (n - 1), "q01": [0.1000] + [0.1] * (n - 1),
+              "q50": [0.1005] + [0.5] * (n - 1), "q99": [0.1016] + [0.9] * (n - 1)}
+    (tmp_path / "meta").mkdir()
+    (tmp_path / "meta/stats.json").write_text(json.dumps({"action": jitter, "observation.state": jitter}))
+    fixed = floor_constant_stats(tmp_path)
+    s = json.loads((tmp_path / "meta/stats.json").read_text())["observation.state"]
+    assert fixed == [f"action[{NAMES[0]}]", f"observation.state[{NAMES[0]}]"]
+    assert s["q01"][0] == pytest.approx(0.1005 - 1) and s["q99"][0] == pytest.approx(0.1005 + 1)
+    assert s["std"][0] == 1.0
+    assert s["q01"][1] == 0.1 and s["q99"][1] == 0.9   # moving columns untouched

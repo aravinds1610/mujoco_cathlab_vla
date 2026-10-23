@@ -29,23 +29,31 @@ from cathlab_sim.spec_io import REPO, load_scene_spec, resolve
 DEFAULT_TASK = REPO / "configs/tasks/handover.yaml"
 GAP_OBJECT_PROB = 0.7  # with a GapSpec, this share of episodes targets the gap's objects
 MIN_STD = 1e-3  # below this a column is constant (e.g. the idle right arm); its std is set to 1
+MIN_QUANTILE_RANGE = 1e-2  # rad; q99 - q01 below this = idle column (left arm jitter is <= 0.0016)
 
 
 def floor_constant_stats(root: Path) -> list[str]:
-    """Set std = 1 for constant columns in meta/stats.json and return their names.
+    """Widen the normalization stats of (near-)constant columns in meta/stats.json; return their names.
 
-    Policies normalize with (x - mean) / (std + 1e-8). For a joint that never moves, std is
-    float rounding noise (~1e-8), so normalizing turns that noise into values of +-50 and the
-    training loss is dominated by it. With std = 1 those columns normalize to ~0.
+    Policies normalize with (x - mean) / (std + 1e-8) or, for quantile policies such as pi0.5,
+    2 (x - q01) / (q99 - q01) - 1. For a joint that never moves (the idle arm), std and q99 - q01
+    are sim jitter or rounding noise, so normalizing amplifies that noise to values of +-30..50.
+    With std = 1, and q01/q99 = q50 -+ 1, those columns normalize to ~0.
     """
     path = root / "meta/stats.json"
     stats = json.loads(path.read_text())
     fixed = []
     for key in ("action", "observation.state"):
-        std = stats[key]["std"]
-        for j, v in enumerate(std):
-            if v < MIN_STD:
-                std[j] = 1.0
+        s = stats[key]
+        for j in range(len(s["std"])):
+            hit = False
+            if s["std"][j] < MIN_STD:
+                s["std"][j] = 1.0
+                hit = True
+            if "q01" in s and s["q99"][j] - s["q01"][j] < MIN_QUANTILE_RANGE:
+                s["q01"][j], s["q99"][j] = s["q50"][j] - 1.0, s["q50"][j] + 1.0
+                hit = True
+            if hit:
                 fixed.append(f"{key}[{NAMES[j]}]")
     path.write_text(json.dumps(stats, indent=4))
     return fixed
