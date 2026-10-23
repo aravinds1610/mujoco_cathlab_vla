@@ -372,19 +372,20 @@ def cmd_generate(args):
                 start = "drop" if p["drop"] else ("near" if p["arm_q"] is not None else "home")
                 name = f"{cfg.object}_l{cfg.layout_id}_o{cfg.obj_color_id}_t{cfg.table_color_id}_s{cfg.seed}" + \
                     ("" if start == "home" else f"_{start}")
-                kept = None
-                if r["success"] and not (args.max_saved and saved >= args.max_saved):
+                kept, over_cap = None, bool(args.max_saved and saved >= args.max_saved)
+                if r["success"] and not over_cap:
                     rec = drop_noops(r["record"], True)
                     kept = len(rec["action"])
                     writer.submit(save_npz, out / "episodes" / f"{name}.npz", rec, task.instruction(cfg))
                     saved += 1
-                log.write(json.dumps({"episode": name if r["success"] else None, **cfg.model_dump(),
+                log.write(json.dumps({"episode": name if kept else None, **cfg.model_dump(),
                                       "pose_jitter_m": [round(float(x), 4) for x in j],
                                       "start": start, "arm_q": p["arm_q"],
                                       **({"drop": {k: v for k, v in p["drop"].items() if k != "poses"},
                                           "start_poses": p["drop"]["poses"]} if p["drop"] else {}),
                                       "side": p["side"], "instruction": task.instruction(cfg), "success": r["success"],
-                                      "failure_stage": r["failure_stage"], "n_frames_raw": r["n_frames"],
+                                      "failure_stage": r["failure_stage"], "over_cap": over_cap and r["success"],
+                                      "n_frames_raw": r["n_frames"],
                                       "n_frames_kept": kept, "engine": args.engine, **ver}) + "\n")
             log.flush()
             done = min(i + batch, len(cfgs))
