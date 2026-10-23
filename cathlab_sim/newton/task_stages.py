@@ -34,13 +34,13 @@ TRAY_FLOOR_TOP = 0.010   # above the table top (scene._add_tray: floor box 2 x 5
 
 
 def instant_flags(target_pos, grasp_pos, target_speed, pinch_pos, driver_q, grip_cmd,
-                  center_z, table_top, tray_xy) -> dict[str, np.ndarray]:
+                  center_z, table_top, tray_xy, tray_half=TRAY_HALF, floor_top=TRAY_FLOOR_TOP) -> dict[str, np.ndarray]:
     """All inputs batched over worlds (leading axis N). center_z = resting height of the object centre
     above its support; grip_cmd = dataset gripper action (1 open, 0 closed). Returns {stage: bool[N]}."""
     gap = np.linalg.norm(pinch_pos - grasp_pos, axis=-1)
-    in_tray = np.all(np.abs(target_pos[:, :2] - np.asarray(tray_xy)) <= np.asarray(TRAY_HALF), axis=-1)
+    in_tray = np.all(np.abs(target_pos[:, :2] - np.asarray(tray_xy)) <= np.asarray(tray_half), axis=-1)
     grip_state = 1 - driver_q / GRIPPER_CLOSED_RAD
-    on_floor = np.abs(target_pos[:, 2] - (table_top + TRAY_FLOOR_TOP + center_z)) < PLACE_Z_TOL
+    on_floor = np.abs(target_pos[:, 2] - (table_top + floor_top + center_z)) < PLACE_Z_TOL
     return {
         "reach": gap < REACH_DIST,
         "grasp": (grip_cmd < 0.5) & (driver_q < GRIPPER_CLOSED_RAD - GRASP_BLOCKED) & (gap < GRASP_DIST),

@@ -23,8 +23,7 @@ import warp as wp
 from newton.sensors import SensorTiledCamera
 
 from cathlab_sim import scene as v1
-from cathlab_sim.newton.task_scene import (OBJECTS, TABLE_TOP, build_task_spec, episode_params, grasp_point,
-                                           load_variation, to_newton_xml)
+from cathlab_sim.newton.task_scene import TABLE_TOP, V1Task, to_newton_xml
 from cathlab_sim.newton.task_stages import instant_flags
 from cathlab_sim.robot_io import GRIPPER_CLOSED_RAD, GRIPPER_CTRL_MAX
 from cathlab_sim.scene import CAMERAS, HOME_Q, IMAGE_SIZE
@@ -32,6 +31,8 @@ from cathlab_sim.scene import CAMERAS, HOME_Q, IMAGE_SIZE
 PHYSICS_DT = 1 / 600
 SUBSTEPS = 20        # per 30 Hz control frame
 SETTLE_FRAMES = 15   # same as cpu_sim
+ARM = {"left": slice(0, 7), "right": slice(8, 15)}
+GRIP = {"left": 7, "right": 15}
 NJMAX, NCONMAX = 600, 150  # constraint rows / contacts per world
 
 
@@ -86,7 +87,7 @@ def build_newton(spec_xml: str, n_worlds: int):
     # add_mjcf hides every collision geom (only <visual> classes render). The robot has separate visual
     # meshes, but the table, tray, floor and objects are collision-only: make those visible.
     for i, label in enumerate(scene.shape_label):
-        if "_fr3v2_" not in label and "_gripper_" not in label:
+        if "_fr3v2_" not in label and "_gripper_" not in label and "_hull" not in label:
             scene.shape_flags[i] |= int(newton.ShapeFlags.VISIBLE)
     main = newton.ModelBuilder()
     newton.solvers.SolverMuJoCo.register_custom_attributes(main)
@@ -100,17 +101,19 @@ def build_newton(spec_xml: str, n_worlds: int):
 
 
 class NewtonTaskSim:
-    def __init__(self, n_worlds: int, variation=None, render: bool = True, image_size: int = IMAGE_SIZE,
+    def __init__(self, n_worlds: int, variation=None, render: bool = True, image_size: int = IMAGE_SIZE, task=None,
                  use_graph: bool = True):
         self.n = n_worlds
-        self.variation = variation or load_variation()
-        spec = build_task_spec(self.variation)
+        self.task = task or V1Task(variation)
+        self.variation = getattr(self.task, "variation", None)
+        spec = self.task.build_spec()
         self.mj_model = spec.compile()  # reference for local frames (sites, cameras) and actuator order
         self.model, self.solver = build_newton(to_newton_xml(spec), n_worlds)
         self.states = [self.model.state(), self.model.state()]
         self.control = self.model.control()
         self._index()
         self._copy_robot_colors()
+        self._apply_task_colors()
         self.base_mass = self.model.body_mass.numpy().copy()
         self.base_inertia = self.model.body_inertia.numpy().copy()
         self.base_color = self.model.shape_color.numpy().copy()
@@ -140,19 +143,22 @@ class NewtonTaskSim:
                [arm[f"right_fr3v2_joint{i}"] for i in range(1, 8)] + [driver["right"]]
         self.q16 = np.stack(cols, axis=1)                       # (N, 16) joint_q indices
         self.is_gripper = np.array([i in (7, 15) for i in range(16)])
-        self.obj_body = {n: self._per_world(bl, n) for n in OBJECTS}
-        self.obj_q = {n: q_start[self._per_world(jl, f"{n}_joint")] for n in OBJECTS}
-        self.obj_qd = {n: qd_start[self._per_world(jl, f"{n}_joint")] for n in OBJECTS}
+        objs = self.task.objects
+        self.obj_body = {n: self._per_world(bl, n) for n in objs}
+        self.obj_q = {n: q_start[self._per_world(jl, f"{n}_joint")] for n in objs}
+        self.obj_qd = {n: qd_start[self._per_world(jl, f"{n}_joint")] for n in objs}
         self.obj_shapes = {n: np.array([i for i, l in enumerate(sl) if f"/{n}/" in l]).reshape(self.n, -1)
-                           for n in OBJECTS}
+                           for n in objs}
         self.table_shape = self._per_world(sl, "table")
         self.link8 = {s: self._per_world(bl, f"{s}_fr3v2_link8") for s in v1.SIDES}
         # pinch site: fixed offset in its parent body (same XML as the CPU model)
         mm = self.mj_model
-        site = mm.site("right_gripper_pinch")
-        self.pinch_body = self._per_world(bl, mm.body(site.bodyid[0]).name)
-        self.pinch_local = site.pos.copy()
-        self.tcp_local = mm.site("right_tcp").pos.copy()     # in link8
+        self.pinch_body, self.pinch_local = {}, {}
+        for s in v1.SIDES:
+            site = mm.site(f"{s}_gripper_pinch")
+            self.pinch_body[s] = self._per_world(bl, mm.body(site.bodyid[0]).name)
+            self.pinch_local[s] = site.pos.copy()
+        self.tcp_local = mm.site("right_tcp").pos.copy()     # in link8 (same mount on both arms)
         self.nu = mm.nu
         self.world_shape_count = self.model.shape_count // self.n
 
@@ -174,16 +180,29 @@ class NewtonTaskSim:
                     color[shapes] = np.array(rgba)[:, :3]
         m.shape_color.assign(color)
 
+    def _apply_task_colors(self):
+        """Task-provided flat colours for shapes whose texture Newton cannot import (V2Task.newton_shape_colors)."""
+        colors = getattr(self.task, "newton_shape_colors", lambda: {})()
+        if not colors:
+            return
+        c = self.model.shape_color.numpy()
+        for i, label in enumerate(self.model.shape_label):
+            for suffix, rgb in colors.items():
+                if label.endswith(suffix):
+                    c[i] = rgb
+        self.model.shape_color.assign(c)
+
     # -- episode setup --------------------------------------------------
-    def reset(self, cfgs, jitters=None, right_qs=None) -> None:
-        """Apply one EpisodeConfig (and optional xy layout jitter) per world, put the robot at home (or the
-        right arm at right_qs[w], for near-start episodes), settle."""
+    def reset(self, cfgs, jitters=None, right_qs=None, arm_qs=None) -> None:
+        """Apply one EpisodeConfig (and optional xy layout jitter) per world, put the robot at home (or the acting
+        arm at arm_qs[w], for near-start episodes; right_qs is the older name), settle."""
         assert len(cfgs) == self.n
         jitters = jitters if jitters is not None else [(0.0, 0.0)] * self.n
-        right_qs = right_qs if right_qs is not None else [None] * self.n
+        arm_qs = arm_qs if arm_qs is not None else (right_qs if right_qs is not None else [None] * self.n)
         self.cfgs = list(cfgs)
         self.targets = [c.object for c in cfgs]
-        self.center_z = np.array([self.variation.objects[c.object].center_z() for c in cfgs])
+        self.sides = [self.task.side(c) for c in cfgs]
+        self.center_z = np.array([self.task.rest_z(c.object) for c in cfgs])
         q = self.model.joint_q.numpy().copy()
         qd = np.zeros(self.model.joint_dof_count, np.float32)
         mass, inertia = self.base_mass.copy(), self.base_inertia.copy()
@@ -191,17 +210,18 @@ class NewtonTaskSim:
         mu = self.model.shape_material_mu.numpy().copy()
         home16 = np.concatenate([HOME_Q, [0.0], HOME_Q, [0.0]])
         for w, cfg in enumerate(cfgs):
-            p = episode_params(self.variation, cfg, jitters[w])
+            p = self.task.episode_params(cfg, jitters[w])
             q[self.q16[w]] = home16
-            if right_qs[w] is not None:
-                q[self.q16[w][8:15]] = right_qs[w]
-            for n in OBJECTS:
+            if arm_qs[w] is not None:
+                q[self.q16[w][ARM[self.sides[w]]]] = arm_qs[w]
+            for n in self.task.objects:
                 pos, wxyz = p["poses"][n]
                 q[self.obj_q[n][w]:self.obj_q[n][w] + 7] = [*pos, wxyz[1], wxyz[2], wxyz[3], wxyz[0]]
                 b = self.obj_body[n][w]
                 mass[b] *= p["mass_scale"]
                 inertia[b] *= p["mass_scale"]
-                color[self.obj_shapes[n][w]] = p["rgba"][n][:3]
+                if n in p["rgba"]:
+                    color[self.obj_shapes[n][w]] = p["rgba"][n][:3]
                 mu[self.obj_shapes[n][w]] = p["friction"]
             color[self.table_shape[w]] = p["rgba"]["table"][:3]
             self.light_gain[w] = p["light_gain"]
@@ -218,9 +238,9 @@ class NewtonTaskSim:
             s.joint_qd.assign(qd)
             newton.eval_fk(self.model, s.joint_q, s.joint_qd, s)
         self.last_action = np.tile(np.concatenate([HOME_Q, [1.0], HOME_Q, [1.0]]).astype(np.float32), (self.n, 1))
-        for w, rq in enumerate(right_qs):
-            if rq is not None:
-                self.last_action[w, 8:15] = rq
+        for w, aq in enumerate(arm_qs):
+            if aq is not None:
+                self.last_action[w, ARM[self.sides[w]]] = aq
         for _ in range(SETTLE_FRAMES):
             self.step(self.last_action)
 
@@ -255,29 +275,34 @@ class NewtonTaskSim:
 
     # -- observations ---------------------------------------------------
     def task_obs(self) -> dict:
+        """Ground truth per world, for that world's acting arm."""
         st = self.states[0]
         body_q = st.body_q.numpy()           # (B, 7) p, q_xyzw
         body_qd = st.body_qd.numpy()         # (B, 6)
         q = st.joint_q.numpy()
+        w_all = np.arange(self.n)
         tgt = np.array([self.obj_body[t][w] for w, t in enumerate(self.targets)])
         pos = body_q[tgt, :3]
         quat_wxyz = body_q[tgt][:, [6, 3, 4, 5]]
-        grasp = np.stack([grasp_point(t, pos[w], quat_wxyz[w]) for w, t in enumerate(self.targets)])
-        R = _quat_xyzw_to_mat(body_q[self.pinch_body, 3:7])
-        pinch = body_q[self.pinch_body, :3] + R @ self.pinch_local
-        R8 = _quat_xyzw_to_mat(body_q[self.link8["right"], 3:7])
-        tcp = body_q[self.link8["right"], :3] + R8 @ self.tcp_local
+        grasp = np.stack([self.task.grasp_point(t, pos[w], quat_wxyz[w]) for w, t in enumerate(self.targets)])
+        pb = np.array([self.pinch_body[s][w] for w, s in enumerate(self.sides)])
+        pl = np.stack([self.pinch_local[s] for s in self.sides])
+        pinch = body_q[pb, :3] + np.einsum("nij,nj->ni", _quat_xyzw_to_mat(body_q[pb, 3:7]), pl)
+        l8 = np.array([self.link8[s][w] for w, s in enumerate(self.sides)])
+        tcp = body_q[l8, :3] + _quat_xyzw_to_mat(body_q[l8, 3:7]) @ self.tcp_local
+        gcol = np.array([GRIP[s] for s in self.sides])
         lin = body_qd[tgt, :3]               # Newton body_qd = (linear at the COM, angular), world frame
-        objects = {n: (body_q[self.obj_body[n], :3], body_q[self.obj_body[n]][:, [6, 3, 4, 5]]) for n in OBJECTS}
+        objects = {n: (body_q[self.obj_body[n], :3], body_q[self.obj_body[n]][:, [6, 3, 4, 5]]) for n in self.task.objects}
         return {"target_pos": pos, "target_quat": quat_wxyz, "grasp_pos": grasp,
                 "target_speed": np.linalg.norm(lin, axis=-1), "pinch_pos": pinch,
-                "driver_q": q[self.q16[:, 15]], "grip_cmd": self.last_action[:, 15], "tcp_pos": tcp,
+                "driver_q": q[self.q16[w_all, gcol]], "grip_cmd": self.last_action[w_all, gcol], "tcp_pos": tcp,
                 "objects": objects}
 
     def flags(self, obs=None) -> dict:
         o = obs or self.task_obs()
         return instant_flags(o["target_pos"], o["grasp_pos"], o["target_speed"], o["pinch_pos"], o["driver_q"],
-                             o["grip_cmd"], self.center_z, TABLE_TOP, self.variation.scene.tray_center)
+                             o["grip_cmd"], self.center_z, TABLE_TOP, self.task.tray_center,
+                             tray_half=self.task.tray_half, floor_top=self.task.tray_floor_top)
 
     # -- cameras --------------------------------------------------------
     def _setup_cameras(self):

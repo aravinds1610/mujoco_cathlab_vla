@@ -59,6 +59,16 @@ def _add_object(world, name: str, obj: ObjectSpec, rgba, park_xy):
 def build_task_spec(variation: VariationSpec | None = None) -> mujoco.MjSpec:
     """v1 robot + table + cameras, a right-arm tray, and the team objects (parked behind the robot)."""
     variation = variation or load_variation()
+    spec = build_base_spec(variation.table_colors[0])
+    world = spec.worldbody
+    v1._add_tray(world, "handover_tray", variation.scene.tray_center)
+    for i, name in enumerate(OBJECTS):
+        _add_object(world, name, variation.objects[name], variation.obj_colors[0][name], (-1.5, -0.5 + 0.35 * i))
+    return spec
+
+
+def build_base_spec(table_rgba) -> mujoco.MjSpec:
+    """Robot (FR3 Duo, both arms), head camera, light, floor, pedestal and table: shared by every task."""
     spec = mujoco.MjSpec()
     spec.modelname = "fr3_duo_cathlab_fr3_newton"
     spec.option.timestep = 1 / 600  # 20 physics steps per 30 Hz control frame
@@ -77,7 +87,7 @@ def build_task_spec(variation: VariationSpec | None = None) -> mujoco.MjSpec:
     world.add_geom(name="pedestal", type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.15, 0.25, v1.MOUNT_Z / 2],
                    pos=[-0.15, 0, v1.MOUNT_Z / 2], rgba=[0.9, 0.9, 0.92, 1])
     world.add_geom(name="table", type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.25, 0.65, TABLE_TOP / 2],
-                   pos=[0.60, 0, TABLE_TOP / 2], rgba=list(variation.table_colors[0]), friction=[0.9, 0.005, 0.0001])
+                   pos=[0.60, 0, TABLE_TOP / 2], rgba=list(table_rgba), friction=[0.9, 0.005, 0.0001])
 
     for side in v1.SIDES:
         base = v1.REF["arm_bases"][side]
@@ -88,10 +98,6 @@ def build_task_spec(variation: VariationSpec | None = None) -> mujoco.MjSpec:
     head = v1.REF["cameras"]["external_camera"]
     world.add_camera(name="external_camera", pos=np.array(head["pos"]) + [0, 0, v1.MOUNT_Z],
                      xyaxes=head["xyaxes"], fovy=v1.CAM_FOVY["external_camera"])
-
-    v1._add_tray(world, "handover_tray", variation.scene.tray_center)
-    for i, name in enumerate(OBJECTS):
-        _add_object(world, name, variation.objects[name], variation.obj_colors[0][name], (-1.5, -0.5 + 0.35 * i))
     return spec
 
 
@@ -161,3 +167,64 @@ def to_newton_xml(spec: mujoco.MjSpec) -> str:
     xml = spec.to_xml()
     # solreffriction/solimpfriction are left alone: their default "0 0" means "use solref"
     return re.sub(r'\b(sol(?:ref|imp)(?:limit)?)="([^"]*)"', _pad_sol, xml)
+
+
+INSTRUCTIONS = ("Hand me the {object}", "Please pass the {object}", "Can you give me the {object}")
+
+
+class V1Task:
+    """v1 task (right arm, bottle / vial / syringe primitives, tray at +y) behind the interface the simulators,
+    expert and generator use. V2Task (instruments.py) implements the same members."""
+    name = "v1"
+    objects = OBJECTS
+    tray_floor_top = 0.010  # v1 scene._add_tray floor top above the table
+
+    def __init__(self, variation: VariationSpec | None = None):
+        self.variation = variation or load_variation()
+        self.tray_center = tuple(self.variation.scene.tray_center)
+        self.tray_half = tuple(v1.TRAY_HALF)
+
+    def build_spec(self) -> mujoco.MjSpec:
+        return build_task_spec(self.variation)
+
+    def episode_params(self, cfg, jitter=(0.0, 0.0)) -> dict:
+        return episode_params(self.variation, cfg, jitter)
+
+    def grasp_point(self, name, pos, quat_wxyz) -> np.ndarray:
+        return grasp_point(name, pos, quat_wxyz)
+
+    def rest_z(self, name: str) -> float:
+        return self.variation.objects[name].center_z()
+
+    def side(self, cfg) -> str:
+        return "right"
+
+    def instruction(self, cfg) -> str:
+        return INSTRUCTIONS[cfg.seed % 3].format(object=cfg.object)
+
+    def configs(self, seed: int = 0) -> list:
+        from cathlab_sim.newton.variation import generation_order, train_configs
+        return generation_order(self.variation, train_configs(self.variation, seed=seed), seed=0)
+
+    def eval_configs(self, tier: str, seeds: list[int]) -> list:
+        from cathlab_sim.newton.variation import eval_configs
+        return eval_configs(self.variation, tier, seeds)
+
+    def grasp_plan(self, target: str, obs: dict) -> dict:
+        """Grasp point, TCP height and yaws, and the place pose, for the scripted expert."""
+        from cathlab_sim.expert import PAD_CENTRE_CLOSED, TABLE_CLEARANCE, TIP_CLOSED
+        spec = self.variation.objects[target]
+        g, q_obj = obs["grasp_pos"][0], obs["target_quat"][0]
+        grasp_z = max(g[2] + PAD_CENTRE_CLOSED, TABLE_TOP + TIP_CLOSED + TABLE_CLEARANCE)
+        if spec.upright:
+            yaws = [k * math.pi / 4 for k in range(8)]
+            place_yaws = yaws
+        else:
+            R = np.zeros(9)
+            mujoco.mju_quat2Mat(R, q_obj)
+            axis = R.reshape(3, 3)[:, 0]
+            a = math.atan2(axis[1], axis[0])
+            yaws = [a, a + math.pi]
+            place_yaws = [a + k * math.pi / 2 for k in range(4)]
+        return {"grasp": g, "grasp_z": grasp_z, "yaws": yaws, "place_xy": self.tray_center, "place_yaws": place_yaws,
+                "rest_z": spec.center_z()}

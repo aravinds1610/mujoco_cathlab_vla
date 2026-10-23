@@ -1,4 +1,4 @@
-"""Right-arm scripted expert for the team objects (bottle, vial, syringe), planned on CPU MuJoCo.
+"""Scripted expert (either arm) for the Newton tasks, planned on CPU MuJoCo.
 
 Same kinematic plan as v1 (cathlab_sim.expert): above -> descend -> close -> lift -> over the tray
 -> lower -> open -> retreat, IK at every 30 Hz frame from ground-truth poses. Differences:
@@ -17,11 +17,10 @@ import math
 import mujoco
 import numpy as np
 
-from cathlab_sim.expert import FAST, PAD_CENTRE_CLOSED, PREGRASP_H, RETREAT_H, SLOW, TABLE_CLEARANCE, TIP_CLOSED, \
+from cathlab_sim.expert import FAST, PREGRASP_H, RETREAT_H, SLOW, \
     ScriptedExpert, _yaw_quat
 from cathlab_sim.ik import solve_ik
 from cathlab_sim.newton.task_scene import TABLE_TOP
-from cathlab_sim.newton.task_stages import TRAY_FLOOR_TOP
 from cathlab_sim.scene import HOME_Q
 
 LIFT_H, CARRY_H = 0.15, 0.12
@@ -29,43 +28,31 @@ PLACE_DROP = 0.012  # release this far above the resting height
 
 
 class TaskExpert(ScriptedExpert):
-    def __init__(self, model: mujoco.MjModel, variation):
-        super().__init__(model, side="right")
-        self.variation = variation
+    """Scripted pick-and-place for any task (task_scene.V1Task, instruments.V2Task) with either arm."""
+
+    def __init__(self, model: mujoco.MjModel, task, side: str = "right"):
+        super().__init__(model, side=side)
+        self.task = task
 
     def plan(self, data: mujoco.MjData, obs: dict, target: str) -> np.ndarray:
-        """obs = CpuTaskSim.task_obs() (batch of 1). Returns (T, 16) float32 actions at 30 Hz."""
-        spec = self.variation.objects[target]
-        g, q_obj, tcp0 = obs["grasp_pos"][0], obs["target_quat"][0], obs["tcp_pos"][0]
+        """obs = CpuTaskSim.task_obs() for this arm (batch of 1). Returns (T, 16) float32 actions at 30 Hz."""
+        gp = self.task.grasp_plan(target, obs)
+        g, grasp_z, tcp0 = gp["grasp"], gp["grasp_z"], obs["tcp_pos"][0]
         centre_z = obs["target_pos"][0][2]
-        # pads centred on the grasp point (task_scene.grasp_point), fingertips clear of the table
-        grasp_z = max(g[2] + PAD_CENTRE_CLOSED, TABLE_TOP + TIP_CLOSED + TABLE_CLEARANCE)
-        if spec.upright:
-            yaws = [k * math.pi / 4 for k in range(8)]
-        else:
-            R = np.zeros(9)
-            mujoco.mju_quat2Mat(R, q_obj)
-            axis = R.reshape(3, 3)[:, 0]
-            a = math.atan2(axis[1], axis[0])
-            yaws = [a, a + math.pi]
         above = np.array([g[0], g[1], grasp_z + PREGRASP_H])
         grasp = np.array([g[0], g[1], grasp_z])
         lift = grasp + [0, 0, LIFT_H]
-        tx, ty = self.variation.scene.tray_center
-        place_z = TABLE_TOP + TRAY_FLOOR_TOP + spec.center_z() + PLACE_DROP + (grasp_z - centre_z)
+        tx, ty = gp["place_xy"]
+        place_z = TABLE_TOP + self.task.tray_floor_top + gp["rest_z"] + PLACE_DROP + (grasp_z - centre_z)
         over = np.array([tx, ty, place_z + CARRY_H])
         place = np.array([tx, ty, place_z])
 
-        # start from wherever the right arm is (HOME_Q, or a near-start pose)
-        q0 = np.array([data.joint(f"right_fr3v2_joint{i}").qpos[0] for i in range(1, 8)])
-        q = q0.copy()
-        pick_quat, q = self._best_quat(data, above, [_yaw_quat(y) for y in yaws], q)
-        # upright objects can be released at any yaw; the syringe keeps a multiple of 90 deg
-        place_quat, _ = self._best_quat(data, over, [_yaw_quat(y) for y in
-                                                      ([k * math.pi / 4 for k in range(8)] if spec.upright else
-                                                       [yaws[0] + k * math.pi / 2 for k in range(4)])], q)
+        # start from wherever this arm is (HOME_Q, or a near-start pose)
+        q0 = np.array([data.joint(f"{self.side}_fr3v2_joint{i}").qpos[0] for i in range(1, 8)])
+        pick_quat, q = self._best_quat(data, above, [_yaw_quat(y) for y in gp["yaws"]], q0.copy())
+        place_quat, _ = self._best_quat(data, over, [_yaw_quat(y) for y in gp["place_yaws"]], q)
         cur_quat = np.zeros(4)
-        mujoco.mju_mat2Quat(cur_quat, data.site("right_tcp").xmat)
+        mujoco.mju_mat2Quat(cur_quat, data.site(f"{self.side}_tcp").xmat)
         self.actions, self.q, self.g = [], q0, 1.0
         self._move(data, tcp0, above, cur_quat, pick_quat, FAST)
         self._move(data, above, grasp, pick_quat, pick_quat, SLOW)

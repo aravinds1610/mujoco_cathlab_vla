@@ -29,16 +29,25 @@ POSE_JITTER = 0.01  # m, for the extra seeds
 NEAR_XY, NEAR_Z = 0.08, (0.06, 0.18)  # near-start episodes: TCP offset from the grasp point (m)
 
 
-def instruction(cfg) -> str:
-    return INSTRUCTIONS[cfg.seed % 3].format(object=cfg.object)
+def make_task(name: str = "v1"):
+    """v1 = right arm, bottle/vial/syringe primitives; v2 = both arms, surgical instrument meshes."""
+    if name == "v2":
+        from cathlab_sim.newton.instruments import V2Task
+        return V2Task()
+    from cathlab_sim.newton.task_scene import V1Task
+    return V1Task()
 
 
-def configs(seed: int = 0, variation=None):
-    """Train-grid configs in generation order. seed > 0 resamples the continuous values (team code)."""
-    from cathlab_sim.newton.task_scene import load_variation
-    from cathlab_sim.newton.variation import generation_order, train_configs
-    v = variation or load_variation()
-    return generation_order(v, train_configs(v, seed=seed), seed=0)
+def instruction(cfg, task=None) -> str:
+    return (task or make_task("v1")).instruction(cfg)
+
+
+def configs(seed: int = 0, variation=None, task=None):
+    """Train-grid configs in generation order. seed > 0 resamples the continuous values."""
+    if task is None:
+        from cathlab_sim.newton.task_scene import V1Task
+        task = V1Task(variation)
+    return task.configs(seed)
 
 
 def versions() -> dict:
@@ -63,18 +72,18 @@ def versions() -> dict:
 _cpu = None
 
 
-def _init_worker(render: bool = False):
+def _init_worker(render: bool = False, task_name: str = "v1"):
     global _cpu
     from cathlab_sim.newton.cpu_sim import CpuTaskSim
-    _cpu = CpuTaskSim(render=render)
+    _cpu = CpuTaskSim(render=render, task=make_task(task_name))
 
 
 def _sample_near_q(cfg, jitter, tries: int = 20):
-    """A right-arm pose with the TCP pointing down somewhere around the target: +-NEAR_XY sideways,
+    """A pose of the acting arm with the TCP pointing down somewhere around the target: +-NEAR_XY sideways,
     NEAR_Z above the grasp height, random yaw. Rejected if IK misses or the settle disturbs an object."""
     from cathlab_sim.expert import PAD_CENTRE_CLOSED, TABLE_CLEARANCE, TIP_CLOSED, _yaw_quat
     from cathlab_sim.ik import solve_ik
-    from cathlab_sim.newton.task_scene import OBJECTS, TABLE_TOP
+    from cathlab_sim.newton.task_scene import TABLE_TOP
     from cathlab_sim.scene import HOME_Q
     rng = np.random.default_rng(cfg.seed + 7_000_003)
     _cpu.reset(cfg, jitter=jitter)
@@ -85,12 +94,12 @@ def _sample_near_q(cfg, jitter, tries: int = 20):
     for _ in range(tries):
         target = np.array([g[0] + rng.uniform(-NEAR_XY, NEAR_XY), g[1] + rng.uniform(-NEAR_XY, NEAR_XY),
                            grasp_z + rng.uniform(*NEAR_Z)])
-        q, pe, re = solve_ik(_cpu.model, _cpu.data, "right", target, _yaw_quat(rng.uniform(-np.pi, np.pi)),
+        q, pe, re = solve_ik(_cpu.model, _cpu.data, _cpu.side, target, _yaw_quat(rng.uniform(-np.pi, np.pi)),
                              q_init=np.array(HOME_Q))
         if pe > 0.005 or re > 0.03:
             continue
-        _cpu.reset(cfg, jitter=jitter, right_q=q)
-        moved = max(np.linalg.norm(_cpu.task_obs()["objects"][n][0] - rest[n]) for n in OBJECTS)
+        _cpu.reset(cfg, jitter=jitter, arm_q=q)
+        moved = max(np.linalg.norm(_cpu.task_obs()["objects"][n][0] - rest[n]) for n in _cpu.task.objects)
         if moved < 0.003:
             return q
     return None
@@ -98,15 +107,15 @@ def _sample_near_q(cfg, jitter, tries: int = 20):
 
 def plan_one(job: dict) -> dict:
     """Plan one episode on CPU; optionally execute it on CPU too (sim2sim, fallback recording).
-    job["near"]: start the right arm near the target instead of at HOME_Q (falls back to home if no pose fits)."""
+    job["near"]: start the acting arm near the target instead of at HOME_Q (falls back to home if no pose fits)."""
     from cathlab_sim.newton.expert_fr3 import TaskExpert
     from cathlab_sim.newton.variation import EpisodeConfig
     cfg = EpisodeConfig(**job["cfg"])
     jitter = np.array(job.get("jitter", [0.0, 0.0]))
-    right_q = _sample_near_q(cfg, jitter) if job.get("near") else None
-    _cpu.reset(cfg, jitter=jitter, right_q=right_q)
-    actions = TaskExpert(_cpu.model, _cpu.variation).plan(_cpu.data, _cpu.task_obs(), cfg.object)
-    out = {"actions": actions, "right_q": None if right_q is None else right_q.tolist()}
+    arm_q = _sample_near_q(cfg, jitter) if job.get("near") else None
+    _cpu.reset(cfg, jitter=jitter, arm_q=arm_q)
+    actions = TaskExpert(_cpu.model, _cpu.task, _cpu.side).plan(_cpu.data, _cpu.task_obs(), cfg.object)
+    out = {"actions": actions, "arm_q": None if arm_q is None else arm_q.tolist(), "side": _cpu.side}
     if job.get("run_cpu"):
         tracker = StageTracker(1)
         rec = {"state": [], "success": [], **{c: [] for c in CAMERAS}} if job.get("record") else None
@@ -125,19 +134,19 @@ def plan_one(job: dict) -> dict:
     return out
 
 
-def make_pool(processes: int, render: bool = False):
-    return mp.get_context("spawn").Pool(processes, initializer=_init_worker, initargs=(render,))
+def make_pool(processes: int, render: bool = False, task_name: str = "v1"):
+    return mp.get_context("spawn").Pool(processes, initializer=_init_worker, initargs=(render, task_name))
 
 
 # -- Newton side ----------------------------------------------------------------
-def run_newton_batch(sim, cfgs, plans, jitters=None, record: bool = False, right_qs=None):
+def run_newton_batch(sim, cfgs, plans, jitters=None, record: bool = False, arm_qs=None):
     """Execute up to sim.n planned episodes in parallel worlds. Returns per-episode dicts."""
     n, k = sim.n, len(cfgs)
     cfgs_p = list(cfgs) + [cfgs[0]] * (n - k)
     plans_p = list(plans) + [plans[0]] * (n - k)
     jit = list(jitters if jitters is not None else [np.zeros(2)] * k) + [np.zeros(2)] * (n - k)
-    rq = list(right_qs if right_qs is not None else [None] * k) + [None] * (n - k)
-    sim.reset(cfgs_p, jitters=jit, right_qs=rq)
+    rq = list(arm_qs if arm_qs is not None else [None] * k) + [None] * (n - k)
+    sim.reset(cfgs_p, jitters=jit, arm_qs=rq)
     T = np.array([len(p) for p in plans_p])
     tracker = StageTracker(n)
     final = [None] * n
@@ -236,29 +245,28 @@ def cmd_check(args):
     print(json.dumps({k: v for k, v in report.items() if k != "failed_configs"}, indent=1))
 
 
-def _jobs(start: int, count: int, seed: int):
-    cfgs = configs(seed)[start:start + count]
+def _jobs(start: int, count: int, seed: int, task=None):
+    cfgs = configs(seed, task=task)[start:start + count]
     rng = np.random.default_rng(10_000 + seed)
     jit = [rng.uniform(-POSE_JITTER, POSE_JITTER, 2) if seed > 0 else np.zeros(2) for _ in cfgs]
     return cfgs, jit
 
 
 def cmd_generate(args):
-    from cathlab_sim.newton.task_scene import load_variation
     out = Path(args.out)
     (out / "episodes").mkdir(parents=True, exist_ok=True)
     (out / "meta").mkdir(exist_ok=True)
-    cfgs, jit = _jobs(args.start, args.count, args.seed)
+    task = make_task(args.task)
+    cfgs, jit = _jobs(args.start, args.count, args.seed, task)
     ver = versions()
-    ver["engine"] = args.engine
-    variation = load_variation()
+    ver["engine"], ver["task"] = args.engine, task.name
     log = open(out / "meta/episodes_extra.jsonl", "a")
     writer = ThreadPoolExecutor(4)
-    pool = make_pool(args.procs, render=args.engine == "mujoco")
+    pool = make_pool(args.procs, render=args.engine == "mujoco", task_name=args.task)
     sim = None
     if args.engine == "newton":
         from cathlab_sim.newton.scene import NewtonTaskSim
-        sim = NewtonTaskSim(args.worlds, variation=variation)
+        sim = NewtonTaskSim(args.worlds, task=task)
     t0, saved = time.time(), 0
     batch = args.worlds if args.engine == "newton" else args.procs
     try:
@@ -269,7 +277,7 @@ def cmd_generate(args):
             plans = pool.map(plan_one, jobs)
             if args.engine == "newton":
                 res = run_newton_batch(sim, cb, [p["actions"] for p in plans], jb, record=True,
-                                       right_qs=[p["right_q"] for p in plans])
+                                       arm_qs=[p["arm_q"] for p in plans])
             else:
                 res = []
                 for p in plans:
@@ -280,17 +288,17 @@ def cmd_generate(args):
                                 "n_frames": len(p["actions"]), "record": r})
             for cfg, j, r, p in zip(cb, jb, res, plans):
                 name = f"{cfg.object}_l{cfg.layout_id}_o{cfg.obj_color_id}_t{cfg.table_color_id}_s{cfg.seed}" + \
-                    ("_near" if p["right_q"] is not None else "")
+                    ("_near" if p["arm_q"] is not None else "")
                 kept = None
                 if r["success"]:
                     rec = drop_noops(r["record"], True)
                     kept = len(rec["action"])
-                    writer.submit(save_npz, out / "episodes" / f"{name}.npz", rec, instruction(cfg))
+                    writer.submit(save_npz, out / "episodes" / f"{name}.npz", rec, task.instruction(cfg))
                     saved += 1
                 log.write(json.dumps({"episode": name if r["success"] else None, **cfg.model_dump(),
                                       "pose_jitter_m": [round(float(x), 4) for x in j],
-                                      "start": "near" if p["right_q"] is not None else "home", "right_q": p["right_q"],
-                                      "instruction": instruction(cfg), "success": r["success"],
+                                      "start": "near" if p["arm_q"] is not None else "home", "arm_q": p["arm_q"],
+                                      "side": p["side"], "instruction": task.instruction(cfg), "success": r["success"],
                                       "failure_stage": r["failure_stage"], "n_frames_raw": r["n_frames"],
                                       "n_frames_kept": kept, "engine": args.engine, **ver}) + "\n")
             log.flush()
@@ -319,7 +327,8 @@ def main():
     g.add_argument("--worlds", type=int, default=16)
     g.add_argument("--procs", type=int, default=16)
     g.add_argument("--engine", choices=["newton", "mujoco"], default="newton")
-    g.add_argument("--near", action="store_true", help="start the right arm near the target (recovery data)")
+    g.add_argument("--near", action="store_true", help="start the acting arm near the target (recovery data)")
+    g.add_argument("--task", choices=["v1", "v2"], default="v1")
     args = ap.parse_args()
     {"check": cmd_check, "generate": cmd_generate}[args.cmd](args)
 

@@ -1,0 +1,265 @@
+{
+  "scenarios": [
+    "table_layout13",
+    "table_layout31",
+    "table_layout3",
+    "table_layout12",
+    "tray_scissors",
+    "tray_tweezers",
+    "tray_trocar",
+    "tray_puncture_device",
+    "drop_scissors",
+    "drop_tweezers",
+    "drop_trocar",
+    "drop_puncture_device"
+  ],
+  "cpu": {
+    "table_layout13": {
+      "max_drift_mm": 0.18,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.5,
+        "trocar": -9.2,
+        "puncture_device": -1.7
+      }
+    },
+    "table_layout31": {
+      "max_drift_mm": 0.152,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.5,
+        "trocar": -9.2,
+        "puncture_device": -1.7
+      }
+    },
+    "table_layout3": {
+      "max_drift_mm": 0.12,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.5,
+        "trocar": -9.2,
+        "puncture_device": -1.7
+      }
+    },
+    "table_layout12": {
+      "max_drift_mm": 0.165,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.5,
+        "trocar": -9.2,
+        "puncture_device": -1.7
+      }
+    },
+    "tray_scissors": {
+      "max_drift_mm": 0.071,
+      "nan": false,
+      "z_mm": {
+        "scissors": -3.0,
+        "tweezers": -844.0,
+        "trocar": -850.7,
+        "puncture_device": -836.8
+      }
+    },
+    "tray_tweezers": {
+      "max_drift_mm": 0.019,
+      "nan": false,
+      "z_mm": {
+        "scissors": -847.0,
+        "tweezers": 0.1,
+        "trocar": -850.7,
+        "puncture_device": -836.8
+      }
+    },
+    "tray_trocar": {
+      "max_drift_mm": 0.048,
+      "nan": false,
+      "z_mm": {
+        "scissors": -847.0,
+        "tweezers": -844.0,
+        "trocar": -6.6,
+        "puncture_device": -836.8
+      }
+    },
+    "tray_puncture_device": {
+      "max_drift_mm": 0.18,
+      "nan": false,
+      "z_mm": {
+        "scissors": -847.0,
+        "tweezers": -844.0,
+        "trocar": -850.7,
+        "puncture_device": 0.9
+      }
+    },
+    "drop_scissors": {
+      "max_drift_mm": 0.058,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.5,
+        "trocar": -9.2,
+        "puncture_device": -1.7
+      }
+    },
+    "drop_tweezers": {
+      "max_drift_mm": 0.057,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.5,
+        "trocar": -9.2,
+        "puncture_device": -1.7
+      }
+    },
+    "drop_trocar": {
+      "max_drift_mm": 0.057,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.5,
+        "trocar": -9.2,
+        "puncture_device": -1.7
+      }
+    },
+    "drop_puncture_device": {
+      "max_drift_mm": 0.11,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.5,
+        "trocar": -9.2,
+        "puncture_device": 4.8
+      }
+    }
+  },
+  "newton": {
+    "table_layout13": {
+      "max_drift_mm": 0.033,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.6,
+        "trocar": -9.3,
+        "puncture_device": 4.5
+      }
+    },
+    "table_layout31": {
+      "max_drift_mm": 0.0,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.6,
+        "trocar": -9.3,
+        "puncture_device": 4.5
+      }
+    },
+    "table_layout3": {
+      "max_drift_mm": 0.025,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.7,
+        "tweezers": -2.6,
+        "trocar": -9.3,
+        "puncture_device": 4.5
+      }
+    },
+    "table_layout12": {
+      "max_drift_mm": 0.03,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.6,
+        "trocar": -9.3,
+        "puncture_device": 4.5
+      }
+    },
+    "tray_scissors": {
+      "max_drift_mm": 0.0,
+      "nan": false,
+      "z_mm": {
+        "scissors": -3.0,
+        "tweezers": -843.9,
+        "trocar": -850.7,
+        "puncture_device": -843.3
+      }
+    },
+    "tray_tweezers": {
+      "max_drift_mm": 0.0,
+      "nan": false,
+      "z_mm": {
+        "scissors": -847.0,
+        "tweezers": 0.0,
+        "trocar": -850.7,
+        "puncture_device": -843.3
+      }
+    },
+    "tray_trocar": {
+      "max_drift_mm": 0.0,
+      "nan": false,
+      "z_mm": {
+        "scissors": -847.0,
+        "tweezers": -843.9,
+        "trocar": -6.7,
+        "puncture_device": -843.3
+      }
+    },
+    "tray_puncture_device": {
+      "max_drift_mm": 0.0,
+      "nan": false,
+      "z_mm": {
+        "scissors": -847.0,
+        "tweezers": -843.9,
+        "trocar": -850.7,
+        "puncture_device": 7.1
+      }
+    },
+    "drop_scissors": {
+      "max_drift_mm": 0.0,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.6,
+        "trocar": -9.3,
+        "puncture_device": 4.5
+      }
+    },
+    "drop_tweezers": {
+      "max_drift_mm": 0.0,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.6,
+        "trocar": -9.3,
+        "puncture_device": 4.5
+      }
+    },
+    "drop_trocar": {
+      "max_drift_mm": 0.0,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.6,
+        "trocar": -9.3,
+        "puncture_device": 4.5
+      }
+    },
+    "drop_puncture_device": {
+      "max_drift_mm": 0.0,
+      "nan": false,
+      "z_mm": {
+        "scissors": -5.6,
+        "tweezers": -2.6,
+        "trocar": -9.3,
+        "puncture_device": 4.5
+      }
+    }
+  },
+  "newton_build_s": 4.4,
+  "pass_cpu": true,
+  "pass_newton": true,
+  "drop_settled": true,
+  "pass": true
+}
