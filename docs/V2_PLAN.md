@@ -14,7 +14,7 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
 | Arms | right only | **left and right**: the arm on the object's side picks |
 | Target | grey box tray at +y | **instrument tray in the middle of the table**, reachable by both arms |
 | Layouts | 8 train / 2 held-out | **~50: 45 train / 5 held-out**, 2 objects on each side |
-| Start pose | home | home **and** near-target (recovery examples), 50/50 |
+| Start pose | home | home, near-target and **drop-recovery** (270 / 270 / 100) |
 
 ## Phases (times are targets)
 
@@ -22,7 +22,7 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
 |---|---|---|---|
 | 1 | **Assets and scene.** Bake each instrument lying flat, real masses, convex collision pieces; a tray reachable by both arms; v2 scene builder | **Load check** in CPU MuJoCo *and* Newton: every object at rest drifts ≤ 2 mm over 300 frames on the table and in the tray, a 5 cm drop settles, no NaN, renders look right (images saved) | 22:20 |
 | 2 | **Expert, both arms.** Side-aware simulators, stage checks and expert; a grasp point and orientation per object; reach probe for both arms | **Every scenario:** {left, right} × {4 objects} × {home, near-start} × 5 layouts = 80 episodes, run in Newton and in CPU MuJoCo; **≥ 80 % per cell** (aim 100 %); contact sheet of one success per cell | 23:40 |
-| 3 | **Data.** v2 variation config (~50 layouts); generate 360 home + 360 near-start episodes; convert to LeRobot; check variety | 720 episodes, balanced over object, arm, layout, table colour and start; loads in LeRobot with the right shapes; variety grid image | 00:50 |
+| 3 | **Data.** v2 variation config (~50 layouts); generate 270 home + 270 near-start + 100 drop-recovery episodes; convert to LeRobot; check variety | 640 episodes, balanced over object, arm, layout, table colour and start; loads in LeRobot with the right shapes; variety grid image | 00:50 |
 | 4 | **Train.** SmolVLA from the v1 16k checkpoint, batch 12, checkpoint every 2k steps | the run finishes without errors; loss falls | 02:40 |
 | 5 | **Evaluate.** Held-out layouts and table colour, per object and arm; blending on; swap test | an eval report per checkpoint | 03:05 |
 | 6 | **Wrap up.** Docs, commit and push. Publish the v2 dataset; publish the v2 model **only if it places ≥ 1 object** | pushed; HF links checked | 03:15 |
@@ -38,6 +38,8 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
 - The 16k v1 model and dataset stay as they are; v2 goes into new folders and new HF repos.
 - Lightwheel meshes stay out of git (`external/`, gitignored). The dataset card credits them as CC BY-NC 4.0, non-commercial.
 - Near-start episodes: the gripper starts 6–18 cm above and ±8 cm around the target (same as v1 near-start).
+- Drop-recovery episodes (owner's request, capped at 100): see the 22:30 log entry.
+- **One generation run at a time, `--worlds 16 --procs 8`, launched with `setsid nohup`** (see the 22:03 log entry).
 
 ## Progress log
 
@@ -60,42 +62,58 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
 - 21:46 **Paused for handoff to a new chat** (owner's request). Phases 1–2 done; phase 3 generation running unattended.
 - 22:00 Resumed. `watch.py` now does v2 evaluation (`--task v2 --tiers ... --report`); expert 3/3 held-out through it, v1 1/1. Variation check (owner asked): varies = object x/y + full yaw (45 layouts, distractors too), table colour (4+1), light intensity and colour temperature, mass, friction, start pose (half near-target, random); **fixed** = place pose and tray position, light direction, camera poses, home pose, instrument textures. Owner: train on the current data. Removed outdated docs (STATUS.md, AR2_robot_model.md).
 
+- 22:03 **Out of memory (my mistake).** A drop-mode test run started next to the near-start generation; together
+  they used more than 32 GB, the kernel killed both, and the owner's desktop froze and VS Code crashed. One
+  generation at 32 worlds + 12 workers uses ~24 GB (the main process holds every camera frame of a batch, ~13 GB).
+  Fix: one run at a time, `--worlds 16 --procs 8` (~15 GB, same speed, ~1,100 episodes/h), detached. Near-start
+  resumed from episode 96 with `--start`; the pose jitter is now drawn for the whole grid before slicing, so a resumed
+  run equals a full run (checked against the 64 episodes logged before the crash).
+- 22:16 **Home and near-start done:** 270/270 and 270/270 succeeded, no duplicates; 40–50 episodes per
+  (instrument, arm).
+- 22:30 **Drop-recovery episodes: 100 done** (`datasets/newton_raw/v2_drop`, 100 saved of 112 attempts). On CPU the
+  expert picks the instrument and the gripper opens at a random frame: 40 % during the lift (a slip), 60 % during
+  the carry (it lands between its spot and the tray). The episode starts from where it came to rest, arm raised and
+  gripper open, and records the re-pick and place in Newton (successes only). The drop itself is not recorded, so
+  the policy never learns to open mid-carry. Rejected starts: not lifted, on or within 3 cm of the tray, crossed to
+  the other arm's side, long axis tilted > 15° (propped up), or moves when the scene is rebuilt. Smoke test first
+  (24 configs): 22/24 saved; 10/22 moved > 4 cm (up to 33 cm), turned up to 29°;
+  `reports/v2_drop_smoke_start_frames.png`. Two fixes from the smoke test: the trocar rests rolled ~32° (puncture
+  device ~15°) even when placed normally, so the tilt check now looks only at the long axis; and drops were sampled
+  over time, most fell during the slow lift, so they are now split lift/carry.
+- 22:31 Phase 3 conversion started: all 640 episodes → `datasets/cathlab_fr3_instruments_v1`.
+
 ## Handoff status (read this first in the new chat)
 
-**State at 21:46, 2026-10-23.** Repo `main` is ahead of `origin/main` with local commits only (not pushed).
+**State at 22:31, 2026-10-23.** Repo `main` is ahead of `origin/main` with local commits only (not pushed).
 
 | Phase | State |
 |---|---|
 | 1 Assets and scene | ✅ done, passes (`reports/v2_assets_check.json`) |
 | 2 Expert, both arms | ✅ done, 60/60 Newton + 60/60 CPU (`reports/v2_expert_check.json`) |
-| 3 Data | 🔄 **generation running in the background** (started 21:44): 270 home-start → `datasets/newton_raw/v2_home`, then 270 near-start → `datasets/newton_raw/v2_near`. ~25 min each. Converter ready but not run |
+| 3 Data | 🔄 generation ✅ (270 home `v2_home`, 270 near `v2_near`, 100 drop-recovery `v2_drop`, all in `datasets/newton_raw/`); **conversion running** (started 22:31, ~30 min) → `datasets/cathlab_fr3_instruments_v1` |
 | 4 Train | ⏳ not started |
-| 5 Evaluate | ⏳ not started; the v2 evaluation harness is not written yet (see below) |
+| 5 Evaluate | ⏳ harness ready: `watch.py --task v2 --tiers ... --report` (expert 3/3 through it) |
 | 6 Wrap up | ⏳ not started |
 
-**Check or stop the running generation:**
+**Check or stop the running conversion:**
 ```bash
-tail -2 /tmp/claude-1000/-home-aravindsuresh16/7bc47717-7358-4c7a-99e7-2feb03ecd51a/scratchpad/gen_v2_home.log   # "[n/270] saved ..." / "done:"
-tail -2 /tmp/claude-1000/-home-aravindsuresh16/7bc47717-7358-4c7a-99e7-2feb03ecd51a/scratchpad/gen_v2_near.log
-ls datasets/newton_raw/v2_home/episodes | wc -l; ls datasets/newton_raw/v2_near/episodes | wc -l
-pgrep -fa "[r]unner generate --task v2"        # stop: kill <the python PIDs>  (never `pkill -f`, it matches its own shell)
+tail -3 /tmp/claude-1000/-home-aravindsuresh16/7bc47717-7358-4c7a-99e7-2feb03ecd51a/scratchpad/convert_v2.log  # "converted n/640" / "wrote 640 episodes"
+pgrep -fa "[c]onvert --raw"        # stop: kill <the python PID>  (never `pkill -f`, it matches its own shell)
 ```
-If the logs were lost (the /tmp path is session scratch), the episode counts and `meta/episodes_extra.jsonl` in each
-raw folder are the source of truth. Re-running with the same arguments into a new folder reproduces the same episodes.
+If the log is lost (the /tmp path is session scratch), the raw folders' `meta/episodes_extra.jsonl` are the source of
+truth. A stopped conversion leaves a partial `datasets/cathlab_fr3_instruments_v1`; delete it (ask the owner) and rerun.
 
 ### Next steps (in order)
 
-1. **Verify phase 3 data:** both raw folders have ~270 episodes; `meta/episodes_extra.jsonl` shows success per
-   attempt (expect ~100 %); balance over side × object × start. Then convert (in `.venv`, LeRobot), about 3 s per episode:
+1. **Finish phase 3:** the conversion (running) merges the three raw folders round-robin, so any first-N slice mixes
+   home, near and drop starts. Command used (in `.venv`):
    ```bash
-   source .venv/bin/activate
-   python -m cathlab_sim.newton.convert --raw datasets/newton_raw/v2_home datasets/newton_raw/v2_near \
+   python -m cathlab_sim.newton.convert --raw datasets/newton_raw/v2_home datasets/newton_raw/v2_near datasets/newton_raw/v2_drop \
      --out datasets/cathlab_fr3_instruments_v1 --repo-id aravindsuresh16/cathlab_fr3_instruments_v1 \
-     --version v1 --scene-id cathlab_fr3_instruments \
-     --notes "FR3 Duo, both arms (nearer arm picks), surgical instruments (NVIDIA Isaac for Healthcare / Lightwheel, CC BY-NC 4.0), central tray, 50 layouts (45 train / 5 held-out), home + near-target starts. "
+     --version v1 --scene-id cathlab_fr3_instruments --notes "..."
    ```
-   Then load-check with `LeRobotDataset(repo_id, root=...)` and build a first-frame variety grid (like
-   `reports/dataset_variety_near_s3.png`).
+   Then load-check with `LeRobotDataset(repo_id, root=...)` (640 episodes, shapes) and build a first-frame variety
+   grid (like `reports/dataset_variety_near_s3.png`).
 2. **Train (phase 4)** in `.venv`, from the v1 16k checkpoint, **batch 12** (owner's choice; batch 16 measured at
    7.3 GB / 8 GB, batch 10 at 5.2 GB). LeRobot uses the new dataset's normalization stats when continuing from a
    checkpoint (checked in `lerobot_train.py`):
@@ -108,11 +126,14 @@ raw folder are the source of truth. Re-running with the same arguments into a ne
      --wandb.enable=false --output_dir=outputs/smolvla_instruments_v1
    ```
    Run a 100-step test first (memory + steps/s), as done for batch 10/16.
-3. **Evaluate (phase 5):** `cathlab_sim/newton/watch.py` and `diag_policy.py` are still **v1-only**. They build
-   `NewtonTaskSim(1)` with the default V1Task and v1 `eval_configs`. Add `--task v2` (use
-   `runner.make_task`, `task.eval_configs(tier, seeds)`, `task.instruction(cfg)`) and an eval loop over the
-   `V2_TIERS` (`instruments.py`), per object and per arm. Use `SmolVLAPolicyAdapter(..., blend=10)` (removes
-   chunk-switch jumps). The owner wants a live MuJoCo window run (`watch.py`, DISPLAY=:1) to see it.
+3. **Evaluate (phase 5)** in `.venv-eval`, 12 episodes per tier (covers both arms), blending on by default:
+   ```bash
+   python -m cathlab_sim.newton.watch --task v2 --ckpt outputs/smolvla_instruments_v1/checkpoints/last/pretrained_model \
+     --no-viewer --episodes 12 --tiers in_distribution held_out_layout held_out_table_color all_held_out \
+     --report reports/v2_eval_<ckpt>.json
+   ```
+   Then a live window run for the owner (`watch.py --task v2 --ckpt ... --episodes 3`, DISPLAY=:1).
+   `diag_policy.py` is still v1-only (not needed for the eval).
 4. **Wrap up (phase 6):** push the dataset to HF (dataset card: credit Lightwheel/NVIDIA i4h, **CC BY-NC 4.0,
    non-commercial**); push the model to HF **only if it places ≥ 1 object** (owner's rule); README + this file;
    `git push`.
@@ -131,12 +152,18 @@ raw folder are the source of truth. Re-running with the same arguments into a ne
 - **Targets:** scissors, trocar, puncture device; **tweezers = distractor only** (slip; see the log above).
 - **Checks:** `check_v2.py assets|expert [--objects ...]`.
 - **Converter:** `convert.py --raw` accepts several folders (interleaved), plus `--scene-id` and `--notes`.
+- **Drop-recovery:** `runner.py generate --drop [--max-saved N]` (`_sample_drop_start`), `V2Task.start_override`,
+  expert phase marks (`TaskExpert.marks`). `--start` resumes give the same configs and jitter as a full run.
+- **Eval:** `watch.py --task v2 --tiers ... --report` (per tier, object and arm).
+- **Upload:** `convert.py --push --license cc-by-nc-4.0 --description "..."` (`--skip-convert` to push only).
 
 ### Gotchas
 
 - Three venvs: `.venv-newton` (generate), `.venv` (convert, train, tests), `.venv-eval` (Newton + LeRobot: watch/eval).
   Python scripts that use `make_pool` must be files, not stdin (spawn re-imports `__main__`).
 - `pkill -f` / `pgrep -f` patterns match the calling shell (exit 144); use the `[x]yz` bracket trick or PIDs.
+- **RAM:** one generation at 32 worlds + 12 workers is ~24 GB of 32; two at once froze the desktop (22:03). One run at a
+  time, `--worlds 16 --procs 8`, `setsid nohup` so a Claude Code restart does not kill it.
 - Newton import quirks already handled: textures/materials dropped, collision shapes invisible (marked VISIBLE except
   `_hull`), short solref padded, `njmax` raised.
 - The v1 SmolVLA (`aravindsuresh16/smolvla_cathlab_fr3_newton_v1`) approaches to 6–8 cm, then stalls (0/6); v2 adds
