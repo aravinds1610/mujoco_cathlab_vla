@@ -81,6 +81,10 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
   device ~15°) even when placed normally, so the tilt check now looks only at the long axis; and drops were sampled
   over time, most fell during the slow lift, so they are now split lift/carry.
 - 22:31 Phase 3 conversion started: all 640 episodes → `datasets/cathlab_fr3_instruments_v1`.
+- 22:36 Conversion stopped at 48 and restarted: it counted 647. Bug: `--max-saved` logged 7 successes after the cap
+  as saved without writing their files (fixed in `runner.py`; the 7 lines in `v2_drop` now say `episode: null,
+  over_cap: true`, original log kept as `episodes_extra.jsonl.bak`). The partial output was moved to the session
+  scratchpad, not deleted. Restarted conversion counts 640.
 
 ## Handoff status (read this first in the new chat)
 
