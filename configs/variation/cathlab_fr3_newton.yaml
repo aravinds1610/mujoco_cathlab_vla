@@ -1,0 +1,48 @@
+# VariationSpec (cathlab_sim/newton/variation.py, team code) for the right-arm FR3 Duo task.
+# Same grid as the team's cathlab_v1.yaml (palettes, table colours, splits, continuous ranges);
+# only the geometry is ours. Frame: world xy (robot mount centre at the origin, robot faces +x,
+# robot's right = -y); z is relative to the table top (cathlab_sim/scene.py TABLE_TOP = 0.8414 m).
+variation_id: cathlab_fr3_newton
+
+scene:
+  table_size: [0.50, 1.30]
+  tray_center: [0.58, 0.26]          # mirror of v1's left-arm tray (0.58, -0.26)
+  tray_inner: [0.30, 0.23]
+  tray_floor_z: 0.01
+  pick_region_center: [0.56, -0.29]  # mirror of v1's pick area x [0.40, 0.72], y [0.08, 0.50]
+  pick_region_size: [0.32, 0.42]
+  min_separation: 0.12
+  reach_corridor_width: 0.15         # the bottle must not stand between the robot and the target
+  tall_object_height: 0.10
+
+# Handoff A2 sizes (the team yaml's bottle is 0.25 m tall; A2 says 152 mm).
+objects:
+  bottle:  {shape: cylinder, radius: 0.0385, length: 0.152, upright: true,  mass: 0.30,  grasp: top}
+  vial:    {shape: cylinder, radius: 0.0135, length: 0.042, upright: true,  mass: 0.02,  grasp: top}
+  syringe: {shape: syringe,  radius: 0.0075, length: 0.140, upright: false, mass: 0.015, grasp: top}
+
+n_layouts: 10
+layout_seed: 1234
+
+obj_colors:
+  - {bottle: [0.85, 0.85, 0.90, 1.0], vial: [0.55, 0.30, 0.10, 1.0], syringe: [0.95, 0.95, 0.95, 1.0]}
+  - {bottle: [0.20, 0.45, 0.85, 1.0], vial: [0.90, 0.80, 0.20, 1.0], syringe: [0.30, 0.75, 0.40, 1.0]}
+  - {bottle: [0.80, 0.25, 0.25, 1.0], vial: [0.25, 0.60, 0.85, 1.0], syringe: [0.95, 0.60, 0.20, 1.0]}
+  - {bottle: [0.35, 0.70, 0.45, 1.0], vial: [0.75, 0.35, 0.75, 1.0], syringe: [0.20, 0.35, 0.80, 1.0]}
+  - {bottle: [0.95, 0.75, 0.30, 1.0], vial: [0.15, 0.15, 0.15, 1.0], syringe: [0.85, 0.20, 0.45, 1.0]}
+
+table_colors:
+  - [0.80, 0.80, 0.80, 1.0]
+  - [0.55, 0.40, 0.25, 1.0]
+  - [0.30, 0.45, 0.60, 1.0]
+  - [0.90, 0.90, 0.85, 1.0]
+  - [0.25, 0.30, 0.25, 1.0]
+
+layout_split:      {train: [0, 1, 2, 3, 4, 5, 6, 7], held_out: [8, 9]}
+obj_color_split:   {train: [0, 1, 2, 3], held_out: [4]}
+table_color_split: {train: [0, 1, 2, 3], held_out: [4]}
+
+mass_scale: [0.7, 1.3]
+friction: [0.5, 1.0]
+light_intensity: [0.7, 1.3]
+light_temp_k: [4000.0, 7500.0]

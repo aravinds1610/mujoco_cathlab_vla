@@ -6,8 +6,10 @@ challenge/
 datasets/
 # Team-internal brief, not for sharing
 aravind-handoff.md
+2026-10-23-aravind-newton-fr3-session.md
 # Python / tooling
 .venv/
+.venv-newton/
 __pycache__/
 *.pyc
 .pytest_cache/

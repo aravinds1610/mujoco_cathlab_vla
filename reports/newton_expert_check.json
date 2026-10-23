@@ -1,0 +1,34 @@
+{
+  "configs": 60,
+  "plan_s_cpu_pool": 6.6,
+  "newton_exec_s": 38.3,
+  "worlds": 20,
+  "per_object": {
+    "bottle": {
+      "newton_success": "20/20",
+      "newton_rate": 1.0,
+      "mean_steps": 457.6,
+      "newton_failure_stages": {},
+      "cpu_success": "20/20",
+      "cpu_failure_stages": {}
+    },
+    "vial": {
+      "newton_success": "20/20",
+      "newton_rate": 1.0,
+      "mean_steps": 460.3,
+      "newton_failure_stages": {},
+      "cpu_success": "20/20",
+      "cpu_failure_stages": {}
+    },
+    "syringe": {
+      "newton_success": "20/20",
+      "newton_rate": 1.0,
+      "mean_steps": 460.9,
+      "newton_failure_stages": {},
+      "cpu_success": "20/20",
+      "cpu_failure_stages": {}
+    }
+  },
+  "pass": true,
+  "failed_configs": []
+}

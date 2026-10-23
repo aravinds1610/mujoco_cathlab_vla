@@ -1,0 +1,293 @@
+"""Plan on CPU MuJoCo (process pool), execute in Newton (N worlds per batch), judge with task_stages.
+
+    python -m cathlab_sim.newton.runner check  [--per-object 20] [--worlds 16]   # N2 expert check
+    python -m cathlab_sim.newton.runner generate --out <raw dir> [--start 0] [--count 96] [--seed 0]
+    python -m cathlab_sim.newton.runner generate --engine mujoco ...             # CPU fallback / baseline
+
+`generate` writes one raw .npz per successful episode (state, action, external_camera,
+left_wrist_camera, right_wrist_camera, success, task) and appends every attempt to
+<out>/meta/episodes_extra.jsonl. Configs come from the team's generation_order over the train grid
+(seed 0 = the 384-cell grid; seeds 1, 2 = resampled mass/friction/light + 1 cm pose jitter).
+"""
+import argparse
+import json
+import multiprocessing as mp
+import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import numpy as np
+
+from cathlab_sim.newton.task_stages import StageTracker
+from cathlab_sim.scene import CAMERAS
+from cathlab_sim.spec_io import REPO
+
+INSTRUCTIONS = ("Hand me the {object}", "Please pass the {object}", "Can you give me the {object}")
+NOOP_JOINT = 1e-4  # rad (handoff A6)
+POSE_JITTER = 0.01  # m, for the extra seeds
+
+
+def instruction(cfg) -> str:
+    return INSTRUCTIONS[cfg.seed % 3].format(object=cfg.object)
+
+
+def configs(seed: int = 0, variation=None):
+    """Train-grid configs in generation order. seed > 0 resamples the continuous values (team code)."""
+    from cathlab_sim.newton.task_scene import load_variation
+    from cathlab_sim.newton.variation import generation_order, train_configs
+    v = variation or load_variation()
+    return generation_order(v, train_configs(v, seed=seed), seed=0)
+
+
+def versions() -> dict:
+    import mujoco
+    out = {"mujoco": mujoco.__version__}
+    try:
+        import mujoco_warp
+        import newton
+        import warp
+        out.update(newton=newton.__version__, warp=warp.__version__,
+                   mujoco_warp=getattr(mujoco_warp, "__version__", "3.12.0"))
+    except ImportError:
+        pass
+    out["git_commit"] = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPO, capture_output=True,
+                                       text=True).stdout.strip()
+    out["git_dirty"] = bool(subprocess.run(["git", "status", "--porcelain", "cathlab_sim", "configs"], cwd=REPO,
+                                           capture_output=True, text=True).stdout.strip())
+    return out
+
+
+# -- CPU side (worker processes) ----------------------------------------------
+_cpu = None
+
+
+def _init_worker(render: bool = False):
+    global _cpu
+    from cathlab_sim.newton.cpu_sim import CpuTaskSim
+    _cpu = CpuTaskSim(render=render)
+
+
+def plan_one(job: dict) -> dict:
+    """Plan one episode on CPU; optionally execute it on CPU too (sim2sim, fallback recording)."""
+    from cathlab_sim.newton.expert_fr3 import TaskExpert
+    from cathlab_sim.newton.variation import EpisodeConfig
+    cfg = EpisodeConfig(**job["cfg"])
+    jitter = np.array(job.get("jitter", [0.0, 0.0]))
+    _cpu.reset(cfg, jitter=jitter)
+    actions = TaskExpert(_cpu.model, _cpu.variation).plan(_cpu.data, _cpu.task_obs(), cfg.object)
+    out = {"actions": actions}
+    if job.get("run_cpu"):
+        tracker = StageTracker(1)
+        rec = {"state": [], "success": [], **{c: [] for c in CAMERAS}} if job.get("record") else None
+        succ = []
+        for a in actions:
+            if rec is not None:
+                rec["state"].append(_cpu.state())
+                for c, img in _cpu.images().items():
+                    rec[c].append(img)
+            _cpu.step(a)
+            succ.append(bool(tracker.update(_cpu.flags())[0]))
+        out.update(cpu_success=succ[-1], cpu_failure_stage=None if succ[-1] else (tracker.failure_stage(0) or "hold"),
+                   cpu_success_trace=succ, cpu_final_target_pos=_cpu.task_obs()["target_pos"][0].tolist())
+        if rec is not None:
+            out["record"] = {k: np.array(v) for k, v in rec.items() if k != "success"}
+    return out
+
+
+def make_pool(processes: int, render: bool = False):
+    return mp.get_context("spawn").Pool(processes, initializer=_init_worker, initargs=(render,))
+
+
+# -- Newton side ----------------------------------------------------------------
+def run_newton_batch(sim, cfgs, plans, jitters=None, record: bool = False):
+    """Execute up to sim.n planned episodes in parallel worlds. Returns per-episode dicts."""
+    n, k = sim.n, len(cfgs)
+    cfgs_p = list(cfgs) + [cfgs[0]] * (n - k)
+    plans_p = list(plans) + [plans[0]] * (n - k)
+    jit = list(jitters if jitters is not None else [np.zeros(2)] * k) + [np.zeros(2)] * (n - k)
+    sim.reset(cfgs_p, jitters=jit)
+    T = np.array([len(p) for p in plans_p])
+    tracker = StageTracker(n)
+    final = [None] * n
+    rec = [{"state": [], "action": [], "success": [], **{c: [] for c in CAMERAS}} for _ in range(k)] if record else None
+    nan = np.zeros(n, bool)
+    for t in range(T.max()):
+        a = np.stack([p[min(t, len(p) - 1)] for p in plans_p])
+        if record:
+            state, imgs = sim.state(), sim.images()
+            for w in range(k):
+                if t < T[w]:
+                    rec[w]["state"].append(state[w])
+                    rec[w]["action"].append(a[w])
+                    for c in CAMERAS:
+                        rec[w][c].append(imgs[c][w])
+        st = sim.step(a)
+        nan |= np.isnan(st).any(axis=1)
+        obs = sim.task_obs()
+        succ = tracker.update(sim.flags(obs)) & ~nan
+        for w in range(k):
+            if t < T[w] and record:
+                rec[w]["success"].append(bool(succ[w]))
+            if t == T[w] - 1:
+                final[w] = {"success": bool(succ[w]), "failure_stage": None if succ[w] else
+                            ("nan" if nan[w] else (tracker.failure_stage(w) or "hold")), "n_frames": int(T[w]),
+                            "final_target_pos": obs["target_pos"][w].tolist()}
+    out = []
+    for w in range(k):
+        r = dict(final[w])
+        if record:
+            r["record"] = {key: np.array(v) for key, v in rec[w].items()}
+        out.append(r)
+    return out
+
+
+def drop_noops(rec: dict, success: bool) -> dict:
+    """Handoff A6: drop frames whose joint targets move < 1e-4 rad on all joints with an unchanged gripper
+    command (vs the previous kept frame). The last kept frame carries the episode outcome."""
+    act = rec["action"]
+    keep = [0]
+    for t in range(1, len(act)):
+        d = np.abs(act[t] - act[keep[-1]])
+        if (np.delete(d, [7, 15]) >= NOOP_JOINT).any() or d[[7, 15]].max() > 0:
+            keep.append(t)
+    keep = np.array(keep)
+    out = {k: v[keep] for k, v in rec.items()}
+    out["success"] = out["success"].copy()
+    out["success"][-1] = success
+    return out
+
+
+def save_npz(path: Path, rec: dict, task: str):
+    np.savez_compressed(path, state=rec["state"].astype(np.float32), action=rec["action"].astype(np.float32),
+                        success=rec["success"].astype(bool), task=np.array(task),
+                        **{c: rec[c].astype(np.uint8) for c in CAMERAS})
+
+
+# -- commands ---------------------------------------------------------------------
+def cmd_check(args):
+    """N2: expert success per object on the first per_object train configs of each object, in Newton."""
+    from cathlab_sim.newton.scene import NewtonTaskSim
+    cfgs = configs(0)[:3 * args.per_object]
+    pool = make_pool(args.procs)
+    t0 = time.time()
+    plans = pool.map(plan_one, [{"cfg": c.model_dump(), "run_cpu": True} for c in cfgs])
+    pool.close()
+    plan_s = time.time() - t0
+    sim = NewtonTaskSim(args.worlds, render=False)
+    t0 = time.time()
+    res = []
+    for i in range(0, len(cfgs), args.worlds):
+        res += run_newton_batch(sim, cfgs[i:i + args.worlds], [p["actions"] for p in plans[i:i + args.worlds]])
+    exec_s = time.time() - t0
+    report = {"configs": len(cfgs), "plan_s_cpu_pool": round(plan_s, 1), "newton_exec_s": round(exec_s, 1),
+              "worlds": args.worlds, "per_object": {}}
+    for obj in ("bottle", "vial", "syringe"):
+        idx = [i for i, c in enumerate(cfgs) if c.object == obj]
+        fails, cpu_fails = {}, {}
+        for i in idx:
+            if not res[i]["success"]:
+                fails[res[i]["failure_stage"]] = fails.get(res[i]["failure_stage"], 0) + 1
+            if not plans[i]["cpu_success"]:
+                cpu_fails[plans[i]["cpu_failure_stage"]] = cpu_fails.get(plans[i]["cpu_failure_stage"], 0) + 1
+        report["per_object"][obj] = {
+            "newton_success": f"{sum(res[i]['success'] for i in idx)}/{len(idx)}",
+            "newton_rate": round(np.mean([res[i]["success"] for i in idx]), 3),
+            "mean_steps": round(float(np.mean([res[i]["n_frames"] for i in idx])), 1),
+            "newton_failure_stages": fails,
+            "cpu_success": f"{sum(plans[i]['cpu_success'] for i in idx)}/{len(idx)}",
+            "cpu_failure_stages": cpu_fails}
+    report["pass"] = all(v["newton_rate"] >= 0.8 for v in report["per_object"].values())
+    report["failed_configs"] = [{"i": i, "object": cfgs[i].object, "layout": cfgs[i].layout_id,
+                                 "newton": res[i]["failure_stage"], "cpu": plans[i]["cpu_failure_stage"]}
+                                for i in range(len(cfgs)) if not (res[i]["success"] and plans[i]["cpu_success"])]
+    (REPO / "reports/newton_expert_check.json").write_text(json.dumps(report, indent=2))
+    print(json.dumps({k: v for k, v in report.items() if k != "failed_configs"}, indent=1))
+
+
+def _jobs(start: int, count: int, seed: int):
+    cfgs = configs(seed)[start:start + count]
+    rng = np.random.default_rng(10_000 + seed)
+    jit = [rng.uniform(-POSE_JITTER, POSE_JITTER, 2) if seed > 0 else np.zeros(2) for _ in cfgs]
+    return cfgs, jit
+
+
+def cmd_generate(args):
+    from cathlab_sim.newton.task_scene import load_variation
+    out = Path(args.out)
+    (out / "episodes").mkdir(parents=True, exist_ok=True)
+    (out / "meta").mkdir(exist_ok=True)
+    cfgs, jit = _jobs(args.start, args.count, args.seed)
+    ver = versions()
+    ver["engine"] = args.engine
+    variation = load_variation()
+    log = open(out / "meta/episodes_extra.jsonl", "a")
+    writer = ThreadPoolExecutor(4)
+    pool = make_pool(args.procs, render=args.engine == "mujoco")
+    sim = None
+    if args.engine == "newton":
+        from cathlab_sim.newton.scene import NewtonTaskSim
+        sim = NewtonTaskSim(args.worlds, variation=variation)
+    t0, saved = time.time(), 0
+    batch = args.worlds if args.engine == "newton" else args.procs
+    try:
+        for i in range(0, len(cfgs), batch):
+            cb, jb = cfgs[i:i + batch], jit[i:i + batch]
+            jobs = [{"cfg": c.model_dump(), "jitter": j.tolist(), "run_cpu": args.engine == "mujoco",
+                     "record": args.engine == "mujoco"} for c, j in zip(cb, jb)]
+            plans = pool.map(plan_one, jobs)
+            if args.engine == "newton":
+                res = run_newton_batch(sim, cb, [p["actions"] for p in plans], jb, record=True)
+            else:
+                res = []
+                for p in plans:
+                    r = p.pop("record")
+                    r["action"] = p["actions"]
+                    r["success"] = np.array(p["cpu_success_trace"])
+                    res.append({"success": p["cpu_success"], "failure_stage": p["cpu_failure_stage"],
+                                "n_frames": len(p["actions"]), "record": r})
+            for cfg, j, r in zip(cb, jb, res):
+                name = f"{cfg.object}_l{cfg.layout_id}_o{cfg.obj_color_id}_t{cfg.table_color_id}_s{cfg.seed}"
+                kept = None
+                if r["success"]:
+                    rec = drop_noops(r["record"], True)
+                    kept = len(rec["action"])
+                    writer.submit(save_npz, out / "episodes" / f"{name}.npz", rec, instruction(cfg))
+                    saved += 1
+                log.write(json.dumps({"episode": name if r["success"] else None, **cfg.model_dump(),
+                                      "pose_jitter_m": [round(float(x), 4) for x in j],
+                                      "instruction": instruction(cfg), "success": r["success"],
+                                      "failure_stage": r["failure_stage"], "n_frames_raw": r["n_frames"],
+                                      "n_frames_kept": kept, "engine": args.engine, **ver}) + "\n")
+            log.flush()
+            done = min(i + batch, len(cfgs))
+            el = time.time() - t0
+            print(f"[{done}/{len(cfgs)}] saved {saved}  {el:.0f}s  {3600 * done / el:.0f} episodes/h", flush=True)
+    finally:
+        writer.shutdown(wait=True)
+        pool.close()
+        log.close()
+    print(f"done: saved {saved}/{len(cfgs)} in {time.time() - t0:.0f}s -> {out}")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("check")
+    c.add_argument("--per-object", type=int, default=20)
+    c.add_argument("--worlds", type=int, default=20)
+    c.add_argument("--procs", type=int, default=16)
+    g = sub.add_parser("generate")
+    g.add_argument("--out", required=True)
+    g.add_argument("--start", type=int, default=0)
+    g.add_argument("--count", type=int, default=96)
+    g.add_argument("--seed", type=int, default=0)
+    g.add_argument("--worlds", type=int, default=16)
+    g.add_argument("--procs", type=int, default=16)
+    g.add_argument("--engine", choices=["newton", "mujoco"], default="newton")
+    args = ap.parse_args()
+    {"check": cmd_check, "generate": cmd_generate}[args.cmd](args)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,93 @@
+{
+  "worlds": 4,
+  "build_s": 5.1,
+  "configs": [
+    {
+      "object": "bottle",
+      "layout_id": 7,
+      "obj_color_id": 3,
+      "table_color_id": 1,
+      "mass_scale": 1.2110496901605239,
+      "friction": 0.7468249874776921,
+      "light_intensity": 0.9340970656368244,
+      "light_temp_k": 4628.626519806746,
+      "seed": 125,
+      "tier": "train"
+    },
+    {
+      "object": "vial",
+      "layout_id": 6,
+      "obj_color_id": 2,
+      "table_color_id": 3,
+      "mass_scale": 0.9993534670222721,
+      "friction": 0.5350610921152518,
+      "light_intensity": 0.7398235264514395,
+      "light_temp_k": 4350.292854941342,
+      "seed": 235,
+      "tier": "train"
+    },
+    {
+      "object": "syringe",
+      "layout_id": 0,
+      "obj_color_id": 0,
+      "table_color_id": 3,
+      "mass_scale": 1.0598383290976394,
+      "friction": 0.7682061899888137,
+      "light_intensity": 1.0832994429734326,
+      "light_temp_k": 6319.129898014381,
+      "seed": 259,
+      "tier": "train"
+    },
+    {
+      "object": "bottle",
+      "layout_id": 3,
+      "obj_color_id": 1,
+      "table_color_id": 1,
+      "mass_scale": 0.7066761967385597,
+      "friction": 0.8594553268838505,
+      "light_intensity": 0.8986763146905972,
+      "light_temp_k": 7265.810322670092,
+      "seed": 53,
+      "tier": "train"
+    }
+  ],
+  "fk_err_mm": {
+    "tcp": 0.002,
+    "pinch": 0.003
+  },
+  "state_err_rad": 0.0,
+  "image_mean_abs_diff": {
+    "external_camera": 65.5,
+    "left_wrist_camera": 46.5,
+    "right_wrist_camera": 47.8
+  },
+  "drift_mm": {
+    "bottle": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "vial": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "syringe": [
+      0.0,
+      0.048,
+      0.236,
+      0.002
+    ]
+  },
+  "max_drift_mm": 0.236,
+  "nan": false,
+  "frame_ms": 17.15,
+  "world_frames_per_s": 233.3,
+  "gripper_state_closed": 0.023,
+  "gripper_state_reopened": 0.997,
+  "gripper_ok": true,
+  "cpu_gripper_state_closed": 0.023,
+  "pass": true
+}

@@ -1,0 +1,108 @@
+"""Convert raw Newton/MuJoCo episodes (.npz from runner.py) to a LeRobot v3 dataset, optionally push it.
+
+Run in the LeRobot venv (.venv: mujoco 3.3.7, lerobot 0.6.1), never in .venv-newton:
+
+    python -m cathlab_sim.newton.convert --raw datasets/newton_raw/v1 --out datasets/cathlab_fr3_newton_v1 \
+        [--limit 96] [--push aravindsuresh16/cathlab_fr3_newton_v1 --tag v1]
+
+Schema = v1 / Siemens fr3_duo_16d (handoff A3): action and observation.state float32[16], three 224x224
+videos, `success` per frame, `task` = instruction, 30 fps, robot_type fr3_duo; std = 1 for constant
+columns. Episodes are written in the raw log order (= generation_order, object-balanced).
+Also writes meta/episodes_extra.jsonl (full config of every attempt, with episode_index for the saved
+ones) and manifest.yaml.
+"""
+import argparse
+import getpass
+import json
+from pathlib import Path
+
+import numpy as np
+import yaml
+
+from cathlab_sim.contracts import DatasetManifest
+from cathlab_sim.generate import features, floor_constant_stats
+from cathlab_sim.robot_io import CONTROL_HZ
+from cathlab_sim.scene import CAMERAS
+
+
+def convert(raw: Path, out: Path, repo_id: str, limit: int | None = None, version: str = "v1") -> DatasetManifest:
+    from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+    if out.exists():
+        raise FileExistsError(f"{out} exists; datasets are versioned, never overwritten")
+    log = [json.loads(line) for line in (raw / "meta/episodes_extra.jsonl").read_text().splitlines()]
+    saved = [e for e in log if e["episode"]]
+    if limit is not None:
+        saved = saved[:limit]
+        last = log.index(saved[-1])
+        log = log[:last + 1]  # attempts up to the last kept episode
+    ds = LeRobotDataset.create(repo_id=repo_id, fps=CONTROL_HZ, features=features(), root=out,
+                               robot_type="fr3_duo", use_videos=True)
+    index = {}
+    try:
+        for i, e in enumerate(saved):
+            z = np.load(raw / "episodes" / f"{e['episode']}.npz")
+            task = str(z["task"])
+            for t in range(len(z["action"])):
+                frame = {"observation.state": z["state"][t], "action": z["action"][t],
+                         "success": np.array([bool(z["success"][t])]), "task": task}
+                for c in CAMERAS:
+                    frame[f"observation.images.{c}"] = z[c][t]
+                ds.add_frame(frame)
+            ds.save_episode()
+            index[e["episode"]] = i
+            if (i + 1) % 16 == 0:
+                print(f"  converted {i + 1}/{len(saved)}", flush=True)
+    finally:
+        ds.finalize()
+    fixed = floor_constant_stats(out)
+    with open(out / "meta/episodes_extra.jsonl", "w") as f:
+        for e in log:
+            f.write(json.dumps({"episode_index": index.get(e["episode"]), **e}) + "\n")
+    per_obj = {o: f"{sum(e['success'] for e in log if e['object'] == o)}/{sum(e['object'] == o for e in log)}"
+               for o in ("bottle", "vial", "syringe")}
+    engines = sorted({e["engine"] for e in log})
+    manifest = DatasetManifest(
+        dataset_id=repo_id, version=version, source="scripted", task_id="hand_me_object",
+        scene_id="cathlab_fr3_newton", n_episodes=len(saved), created_by=getpass.getuser(),
+        quality_score=round(sum(e["success"] for e in log) / max(len(log), 1), 4),
+        notes=(f"FR3 Duo, right arm, scripted IK expert (ground-truth poses) planned on CPU MuJoCo; physics + "
+               f"rendering engine {engines}. Team variation grid (configs/variation/cathlab_fr3_newton.yaml), "
+               f"configs in generation_order. attempts={len(log)}; expert success per object {per_obj}. "
+               f"No-op frames dropped (handoff A6); constant-column std set to 1: {len(fixed)} columns."))
+    (out / "manifest.yaml").write_text(yaml.safe_dump(manifest.model_dump(), sort_keys=False))
+    print(f"wrote {len(saved)} episodes -> {out}")
+    return manifest
+
+
+def push(out: Path, repo_id: str, tag: str):
+    from huggingface_hub import HfApi
+    from lerobot.datasets.lerobot_dataset import LeRobotDataset
+    ds = LeRobotDataset(repo_id, root=out)
+    # uploads the whole root (incl. manifest.yaml, meta/episodes_extra.jsonl) and tags the codebase version (v3.0)
+    ds.push_to_hub(tags=["fr3_duo", "newton", "mujoco-warp", "synthetic"], private=False, tag_version=True)
+    api = HfApi()
+    if tag:
+        api.create_tag(repo_id, tag=tag, repo_type="dataset")
+    files = api.list_repo_files(repo_id, repo_type="dataset", revision=tag or "v3.0")
+    assert "manifest.yaml" in files and "meta/episodes_extra.jsonl" in files, "extra files missing on the Hub"
+    print(f"pushed https://huggingface.co/datasets/{repo_id} (tags: v3.0{', ' + tag if tag else ''})")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--raw", type=Path, required=True)
+    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--repo-id", default="aravindsuresh16/cathlab_fr3_newton_v1")
+    ap.add_argument("--limit", type=int, default=None, help="first N saved episodes (generation order)")
+    ap.add_argument("--version", default="v1")
+    ap.add_argument("--push", action="store_true")
+    ap.add_argument("--tag", default="v1")
+    args = ap.parse_args()
+    convert(args.raw, args.out, args.repo_id, args.limit, args.version)
+    if args.push:
+        push(args.out, args.repo_id, args.tag)
+
+
+if __name__ == "__main__":
+    main()
