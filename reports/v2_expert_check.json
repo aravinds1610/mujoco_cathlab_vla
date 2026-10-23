@@ -1,0 +1,143 @@
+{
+  "episodes": 60,
+  "plan_s": 7.7,
+  "newton_exec_s": 41.5,
+  "cells": {
+    "left/puncture_device/home": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "left"
+      ]
+    },
+    "left/puncture_device/near": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "left"
+      ]
+    },
+    "left/scissors/home": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "left"
+      ]
+    },
+    "left/scissors/near": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "left"
+      ]
+    },
+    "left/trocar/home": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "left"
+      ]
+    },
+    "left/trocar/near": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "left"
+      ]
+    },
+    "right/puncture_device/home": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "right"
+      ]
+    },
+    "right/puncture_device/near": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "right"
+      ]
+    },
+    "right/scissors/home": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "right"
+      ]
+    },
+    "right/scissors/near": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "right"
+      ]
+    },
+    "right/trocar/home": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "right"
+      ]
+    },
+    "right/trocar/near": {
+      "newton": "5/5",
+      "cpu": "5/5",
+      "newton_rate": 1.0,
+      "near_start_found": "5/5",
+      "newton_failures": [],
+      "cpu_failures": [],
+      "sides_used": [
+        "right"
+      ]
+    }
+  },
+  "newton_total": "60/60",
+  "cpu_total": "60/60",
+  "pass": true,
+  "failed_episodes": []
+}

@@ -16,8 +16,14 @@ from cathlab_sim.spec_io import REPO
 ASSETS = REPO / "external/i4h_mujoco"
 # name -> mass (kg), estimated for real instruments (not measured)
 INSTRUMENTS = {"scissors": 0.060, "tweezers": 0.025, "trocar": 0.090, "puncture_device": 0.050}
+# Instruments the robot is asked for. Tweezers stay on the table as a distractor only: the rigid thin prongs slip
+# out of the 2F-85 grasp in Newton (2/20 mid-length, 4/20 near the joint; reports/v2_expert_check*.json).
+TARGETS = ("scissors", "trocar", "puncture_device")
 TRAY = "plate"
 GRIPPER_OPEN = 0.085  # Robotiq 2F-85 stroke
+# Grasp slice overrides (body x, m). Angled tweezers lie on their side: mid-length the fingers would squeeze two
+# separate thin prongs (7 mm gap) and the grip slips in Newton; near the joint the prongs are 2 mm apart.
+GRASP_X = {"tweezers": -0.048}
 
 
 def _lay_rotation(verts: np.ndarray) -> np.ndarray:
@@ -32,18 +38,20 @@ def _lay_rotation(verts: np.ndarray) -> np.ndarray:
     return R
 
 
-def _grasp_from_geometry(verts: np.ndarray) -> dict:
-    """Grasp slice across the long (x) axis: narrow enough for the gripper, as central as possible."""
+def _grasp_from_geometry(verts: np.ndarray, force_x: float | None = None) -> dict:
+    """Grasp slice across the long (x) axis: narrow enough for the gripper, as central as possible
+    (or exactly at force_x)."""
     xs = verts[:, 0]
     lo, hi = xs.min(), xs.max()
     best = None
-    for t in np.linspace(0.25, 0.75, 21):
+    ts = [(force_x - lo) / (hi - lo)] if force_x is not None else np.linspace(0.25, 0.75, 21)
+    for t in ts:
         x0 = lo + t * (hi - lo)
         sl = verts[np.abs(xs - x0) < 0.004]
         if len(sl) < 8:
             continue
         width = sl[:, 1].max() - sl[:, 1].min()
-        if not 0.006 <= width <= 0.045:
+        if not 0.003 <= width <= 0.045:
             continue
         score = abs(t - 0.5) + max(0.0, width - 0.030) * 10  # central first, then narrower than 30 mm
         if best is None or score < best[0]:
@@ -84,7 +92,7 @@ def prepare(name: str) -> dict:
         hull_files.append({"obj": f, "volume": float(abs(h.volume))})
     v = allv @ R.T + shift
     spec = {"name": name, "size_m": (v.max(0) - v.min(0)).round(4).tolist(), "parts": parts, "hulls": hull_files,
-            "mass": INSTRUMENTS.get(name, 0.5), "grasp": _grasp_from_geometry(v) if name in INSTRUMENTS else None}
+            "mass": INSTRUMENTS.get(name, 0.5), "grasp": _grasp_from_geometry(v, GRASP_X.get(name)) if name in INSTRUMENTS else None}
     (out / "spec.json").write_text(json.dumps(spec, indent=2))
     return spec
 
@@ -212,7 +220,8 @@ def v2_layouts() -> list[dict[str, tuple[float, float, float]]]:
 class V2Task:
     """v2: surgical instruments (meshes), the arm on the object's side picks, central tray."""
     name = "v2"
-    objects = tuple(INSTRUMENTS)
+    objects = tuple(INSTRUMENTS)       # every instrument on the table (physics)
+    targets = TARGETS                  # the ones the robot is asked for
     tray_center = TRAY_CENTER
     tray_half = (TRAY_INNER_HALF[0] - 0.01, TRAY_INNER_HALF[1] - 0.01)
     tray_floor_top = TRAY_FLOOR
@@ -277,22 +286,22 @@ class V2Task:
                              **{k: float(rng.uniform(*r)) for k, r in RANGES.items()})
 
     def configs(self, seed: int = 0) -> list:
-        """Train grid: 45 layouts x 4 instruments x 2 table colours = 360, objects interleaved."""
+        """Train grid: 45 layouts x 3 targets x 2 table colours = 270, targets interleaved."""
         out = []
         for li in TRAIN_LAYOUTS:
-            for oi, obj in enumerate(INSTRUMENTS):
+            for oi, obj in enumerate(TARGETS):
                 for k in range(2):
                     t = TRAIN_TABLES[(li + oi + 2 * k + seed) % len(TRAIN_TABLES)]
                     out.append(self._cfg(obj, li, t, seed * 1_000_003 + len(out), "train"))
         rng = np.random.default_rng(seed)
-        per = [[c for c in out if c.object == o] for o in INSTRUMENTS]
+        per = [[c for c in out if c.object == o] for o in TARGETS]
         per = [[g[i] for i in rng.permutation(len(g))] for g in per]
         return [g[i] for i in range(max(map(len, per))) for g in per if i < len(g)]
 
     def eval_configs(self, tier: str, seeds: list[int]) -> list:
         lay = HELD_OUT_LAYOUTS if tier in ("held_out_layout", "all_held_out") else TRAIN_LAYOUTS
         tab = HELD_OUT_TABLES if tier in ("held_out_table_color", "all_held_out") else TRAIN_TABLES
-        return [self._cfg(obj, lay[s % len(lay)], tab[s % len(tab)], s, tier) for obj in INSTRUMENTS for s in seeds]
+        return [self._cfg(obj, lay[s % len(lay)], tab[s % len(tab)], s, tier) for obj in TARGETS for s in seeds]
 
     def grasp_plan(self, target: str, obs: dict) -> dict:
         from cathlab_sim.expert import PAD_CENTRE_CLOSED, TABLE_CLEARANCE, TIP_CLOSED

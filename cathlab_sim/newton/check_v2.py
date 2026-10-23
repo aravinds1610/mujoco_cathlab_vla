@@ -120,12 +120,93 @@ def check_assets():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("what", choices=["assets", "expert"])
+    ap.add_argument("--objects", nargs="+", default=None, help="expert: only these instruments")
+    ap.add_argument("--per-cell", type=int, default=5)
+    ap.add_argument("--out-name", default="v2_expert_check")
     args = ap.parse_args()
-    {"assets": check_assets, "expert": lambda: check_expert()}[args.what]()
+    if args.what == "assets":
+        check_assets()
+    else:
+        check_expert(args.per_cell, objects=args.objects, out_name=args.out_name)
 
 
-def check_expert():
-    raise NotImplementedError  # filled in phase 2
+def _cells(task, per_cell: int):
+    """{(side, object, start): [cfg, ...]} from the train grid, per_cell configs each."""
+    cells = {}
+    for cfg in task.configs(0):
+        for start in ("home", "near"):
+            key = (task.side(cfg), cfg.object, start)
+            if len(cells.setdefault(key, [])) < per_cell:
+                cells[key].append(cfg)
+    return cells
+
+
+def check_expert(per_cell: int = 5, worlds: int = 20, procs: int = 12, objects=None, out_name="v2_expert_check"):
+    from cathlab_sim.newton.runner import make_pool, plan_one, run_newton_batch
+    from cathlab_sim.newton.scene import NewtonTaskSim
+    task = V2Task()
+    cells = {k: v for k, v in _cells(task, per_cell).items() if objects is None or k[1] in objects}
+    jobs, keys, cfgs = [], [], []
+    for key, cl in sorted(cells.items()):
+        for cfg in cl:
+            jobs.append({"cfg": cfg.model_dump(), "run_cpu": True, "near": key[2] == "near"})
+            keys.append(key)
+            cfgs.append(cfg)
+    t0 = time.time()
+    pool = make_pool(procs, task_name="v2")
+    plans = pool.map(plan_one, jobs)
+    pool.close()
+    plan_s = time.time() - t0
+    sim = NewtonTaskSim(worlds, task=task, render=False)
+    res = []
+    t0 = time.time()
+    for i in range(0, len(cfgs), worlds):
+        res += run_newton_batch(sim, cfgs[i:i + worlds], [p["actions"] for p in plans[i:i + worlds]],
+                                arm_qs=[p["arm_q"] for p in plans[i:i + worlds]])
+    exec_s = time.time() - t0
+    table, fails = {}, []
+    for key in sorted(cells):
+        idx = [i for i, k in enumerate(keys) if k == key]
+        n_ok = sum(res[i]["success"] for i in idx)
+        c_ok = sum(plans[i]["cpu_success"] for i in idx)
+        near_ok = sum(plans[i]["arm_q"] is not None for i in idx) if key[2] == "near" else len(idx)
+        table["/".join(key)] = {"newton": f"{n_ok}/{len(idx)}", "cpu": f"{c_ok}/{len(idx)}",
+                                "newton_rate": n_ok / len(idx), "near_start_found": f"{near_ok}/{len(idx)}",
+                                "newton_failures": [res[i]["failure_stage"] for i in idx if not res[i]["success"]],
+                                "cpu_failures": [plans[i]["cpu_failure_stage"] for i in idx if not plans[i]["cpu_success"]],
+                                "sides_used": sorted({plans[i]["side"] for i in idx})}
+        fails += [{"cell": "/".join(key), "layout": cfgs[i].layout_id, "seed": cfgs[i].seed,
+                   "newton": res[i]["failure_stage"], "cpu": plans[i]["cpu_failure_stage"]}
+                  for i in idx if not (res[i]["success"] and plans[i]["cpu_success"])]
+    report = {"episodes": len(cfgs), "plan_s": round(plan_s, 1), "newton_exec_s": round(exec_s, 1), "cells": table,
+              "newton_total": f"{sum(r['success'] for r in res)}/{len(res)}",
+              "cpu_total": f"{sum(p['cpu_success'] for p in plans)}/{len(plans)}",
+              "pass": all(v["newton_rate"] >= 0.8 for v in table.values()), "failed_episodes": fails}
+    (REPO / f"reports/{out_name}.json").write_text(json.dumps(report, indent=2))
+    for k, v in table.items():
+        print(f"{k:32s} newton {v['newton']:5s} cpu {v['cpu']:5s} near {v['near_start_found']:5s} "
+              f"fails {v['newton_failures'] or ''} {v['cpu_failures'] or ''}")
+    print("TOTAL newton", report["newton_total"], "| cpu", report["cpu_total"], "| PASS" if report["pass"] else "| FAIL")
+    if objects is None:
+        _contact_sheet(task, cells, plans, keys, cfgs)
+
+
+def _contact_sheet(task, cells, plans, keys, cfgs):
+    """One mid-carry frame (external + acting wrist) per (side, object), home start, recorded in Newton."""
+    from cathlab_sim.newton.runner import run_newton_batch
+    from cathlab_sim.newton.scene import NewtonTaskSim
+    pick = [next(i for i, k in enumerate(keys) if k == (s, o, "home")) for s in ("left", "right") for o in task.targets]
+    sim = NewtonTaskSim(len(pick), task=task)
+    res = run_newton_batch(sim, [cfgs[i] for i in pick], [plans[i]["actions"] for i in pick], record=True)
+    tiles = []
+    for j, i in enumerate(pick):
+        r = res[j]["record"]
+        t = int(len(r["action"]) * 0.42)  # lifted, on the way to the tray
+        wrist = "left_wrist_camera" if keys[i][0] == "left" else "right_wrist_camera"
+        tiles.append(np.concatenate([r["external_camera"][t], r[wrist][t]], axis=1))
+    n = len(task.targets)
+    rows = [np.concatenate(tiles[k:k + n], axis=1) for k in (0, n)]
+    Image.fromarray(np.concatenate(rows, axis=0)).save(REPO / "reports/v2_expert_contact_sheet.png")
 
 
 if __name__ == "__main__":

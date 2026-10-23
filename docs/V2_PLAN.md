@@ -49,3 +49,11 @@ handover comes later. Then generate a dataset, continue SmolVLA training (batch 
   Fixes needed: (1) CPU MuJoCo creep of ~0.14 mm/s: MjSpec.attach had dropped the Robotiq model's own contact settings
   (elliptic cone, impratio 10); restored for v2 only. (2) Newton drops textures: the 2 textured parts get their
   texture's mean colour in Newton. v1 regression after the task refactor: 12/12 in Newton.
+- 21:44 **Phase 2 done (pass).** Expert check (`reports/v2_expert_check.json`): {left, right} × {scissors, trocar,
+  puncture device} × {home, near-start} × 5 layouts = **60/60 in Newton and 60/60 in CPU MuJoCo**, every cell 5/5;
+  contact sheet `reports/v2_expert_contact_sheet.png`. **Deviation:** tweezers dropped as a target and kept as a
+  distractor on the table. Their thin rigid prongs slip out of the grasp during the lift in Newton (2/20 grasped
+  mid-length; 4/20 near the joint, `reports/v2_expert_check_tweezers.json`). Both engines use the same contact
+  settings (elliptic cone, impratio 10, checked), and slip during the slow lift rules out carry speed, so I applied the
+  fallback after one attempt instead of two. Train grid: 45 layouts × 3 targets × 2 table colours = 270.
+- 21:44 Phase 3 started: 270 home (seed 0) + 270 near-start (seed 1) episodes.

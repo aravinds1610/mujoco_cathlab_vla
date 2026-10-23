@@ -1,0 +1,233 @@
+{
+  "episodes": 20,
+  "plan_s": 3.8,
+  "newton_exec_s": 13.6,
+  "cells": {
+    "left/tweezers/home": {
+      "newton": "1/5",
+      "cpu": "0/5",
+      "newton_rate": 0.2,
+      "near_start_found": "5/5",
+      "newton_failures": [
+        "transport",
+        "transport",
+        "transport",
+        "transport"
+      ],
+      "cpu_failures": [
+        "place",
+        "place",
+        "place",
+        "transport",
+        "place"
+      ],
+      "sides_used": [
+        "left"
+      ]
+    },
+    "left/tweezers/near": {
+      "newton": "1/5",
+      "cpu": "3/5",
+      "newton_rate": 0.2,
+      "near_start_found": "5/5",
+      "newton_failures": [
+        "transport",
+        "transport",
+        "transport",
+        "transport"
+      ],
+      "cpu_failures": [
+        "place",
+        "transport"
+      ],
+      "sides_used": [
+        "left"
+      ]
+    },
+    "right/tweezers/home": {
+      "newton": "1/5",
+      "cpu": "2/5",
+      "newton_rate": 0.2,
+      "near_start_found": "5/5",
+      "newton_failures": [
+        "transport",
+        "transport",
+        "transport",
+        "transport"
+      ],
+      "cpu_failures": [
+        "place",
+        "place",
+        "place"
+      ],
+      "sides_used": [
+        "right"
+      ]
+    },
+    "right/tweezers/near": {
+      "newton": "1/5",
+      "cpu": "2/5",
+      "newton_rate": 0.2,
+      "near_start_found": "5/5",
+      "newton_failures": [
+        "transport",
+        "transport",
+        "transport",
+        "transport"
+      ],
+      "cpu_failures": [
+        "place",
+        "place",
+        "place"
+      ],
+      "sides_used": [
+        "right"
+      ]
+    }
+  },
+  "newton_total": "4/20",
+  "cpu_total": "7/20",
+  "pass": false,
+  "failed_episodes": [
+    {
+      "cell": "left/tweezers/home",
+      "layout": 31,
+      "seed": 250,
+      "newton": "transport",
+      "cpu": "place"
+    },
+    {
+      "cell": "left/tweezers/home",
+      "layout": 19,
+      "seed": 155,
+      "newton": "transport",
+      "cpu": "place"
+    },
+    {
+      "cell": "left/tweezers/home",
+      "layout": 39,
+      "seed": 314,
+      "newton": "transport",
+      "cpu": "place"
+    },
+    {
+      "cell": "left/tweezers/home",
+      "layout": 37,
+      "seed": 299,
+      "newton": null,
+      "cpu": "transport"
+    },
+    {
+      "cell": "left/tweezers/home",
+      "layout": 0,
+      "seed": 2,
+      "newton": "transport",
+      "cpu": "place"
+    },
+    {
+      "cell": "left/tweezers/near",
+      "layout": 31,
+      "seed": 250,
+      "newton": "transport",
+      "cpu": null
+    },
+    {
+      "cell": "left/tweezers/near",
+      "layout": 19,
+      "seed": 155,
+      "newton": "transport",
+      "cpu": "place"
+    },
+    {
+      "cell": "left/tweezers/near",
+      "layout": 39,
+      "seed": 314,
+      "newton": "transport",
+      "cpu": null
+    },
+    {
+      "cell": "left/tweezers/near",
+      "layout": 37,
+      "seed": 299,
+      "newton": null,
+      "cpu": "transport"
+    },
+    {
+      "cell": "left/tweezers/near",
+      "layout": 0,
+      "seed": 2,
+      "newton": "transport",
+      "cpu": null
+    },
+    {
+      "cell": "right/tweezers/home",
+      "layout": 43,
+      "seed": 346,
+      "newton": "transport",
+      "cpu": "place"
+    },
+    {
+      "cell": "right/tweezers/home",
+      "layout": 43,
+      "seed": 347,
+      "newton": "transport",
+      "cpu": "place"
+    },
+    {
+      "cell": "right/tweezers/home",
+      "layout": 36,
+      "seed": 291,
+      "newton": "transport",
+      "cpu": null
+    },
+    {
+      "cell": "right/tweezers/home",
+      "layout": 42,
+      "seed": 338,
+      "newton": null,
+      "cpu": "place"
+    },
+    {
+      "cell": "right/tweezers/home",
+      "layout": 40,
+      "seed": 323,
+      "newton": "transport",
+      "cpu": null
+    },
+    {
+      "cell": "right/tweezers/near",
+      "layout": 43,
+      "seed": 346,
+      "newton": "transport",
+      "cpu": "place"
+    },
+    {
+      "cell": "right/tweezers/near",
+      "layout": 43,
+      "seed": 347,
+      "newton": "transport",
+      "cpu": "place"
+    },
+    {
+      "cell": "right/tweezers/near",
+      "layout": 36,
+      "seed": 291,
+      "newton": "transport",
+      "cpu": null
+    },
+    {
+      "cell": "right/tweezers/near",
+      "layout": 42,
+      "seed": 338,
+      "newton": null,
+      "cpu": "place"
+    },
+    {
+      "cell": "right/tweezers/near",
+      "layout": 40,
+      "seed": 323,
+      "newton": "transport",
+      "cpu": null
+    }
+  ]
+}
