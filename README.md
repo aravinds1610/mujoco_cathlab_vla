@@ -78,21 +78,21 @@ For quantile-normalized policies (π0.5), use `revision="v1.0.1"`: same episodes
 
 | Track | State | Details |
 |---|---|---|
-| Newton FR3 data (N1–N5) | ✅ Port, expert, variation, dataset and report done. Expert 100 % on train and all held-out tiers; CPU MuJoCo vs Newton agree on 60/60 episodes | [docs/NEWTON_REPORT.md](docs/NEWTON_REPORT.md) |
+| v1 data in Newton | ✅ Newton port, expert, variation and dataset done. Expert 100 % on train and all held-out tiers; CPU MuJoCo vs Newton agree on 60/60 episodes | `cathlab_sim/newton/check_n1.py`, `runner.py` |
 | SmolVLA on the Newton data | ⚠️ Trained (v1 model above). Inputs verified identical live vs training; first actions match the expert (0.02–0.04 rad). Closed loop it approaches to 6–8 cm, then stalls: no recovery examples in the data. Chunk-switch jitter fixed by blending (max jump 0.40 → 0.05 rad). Next: near-target start poses in the data, then continue training | `cathlab_sim/newton/watch.py`, `diag_policy.py` |
 | v2: surgical instruments, both arms | ✅ Dataset published (above): expert 60/60 in Newton and CPU MuJoCo on every arm × instrument × start; 640 episodes incl. near-target and drop-recovery starts. ⏳ Fine-tuning and evaluation deferred (evaluation tool ready: `watch.py --task v2 --tiers ... --report`) | [docs/V2_PLAN.md](docs/V2_PLAN.md) |
 | MuJoCo track (v1, left arm) | Superseded by the Newton track. Backend, expert (78 %), generator, eval harness | `cathlab_sim/` (top level) |
 
-Throughput on this laptop (RTX 4060 8 GB, i9-14900HX), with cameras: Newton ~1,580 episodes/h at 32 worlds; CPU MuJoCo ~1,170/h per process, ~2,990/h with 12 processes. See the report.
+Throughput on this laptop (RTX 4060 8 GB, i9-14900HX), with cameras: Newton ~1,580 episodes/h at 32 worlds; CPU MuJoCo ~1,170/h per process, ~2,990/h with 12 processes.
 
 ## Layout
 
 | Path | What it does |
 |---|---|
 | `cathlab_sim/newton/` | Newton track: task scenes (v1 right arm; v2 instruments, both arms: `instruments.py`), `NewtonTaskSim` (parallel worlds, batched cameras), CPU twin, shared stage checks, expert, generator, LeRobot converter, N1–N5 checks |
-| `configs/variation/cathlab_fr3_newton.yaml` | Variation grid (team format): geometry, palettes, table colours, splits, mass/friction/light ranges |
+| `configs/variation/cathlab_fr3_newton.yaml` | v1 variation grid: geometry, palettes, table colours, splits, mass/friction/light ranges |
 | `cathlab_sim/` (top level) | MuJoCo track: robot model and 16-D mapping, scene, backend, IK, v1 expert, generator, evaluation, SmolVLA adapter, viewer |
-| `docs/` | `NEWTON_REPORT.md` (Newton pipeline), `V2_PLAN.md` (current v2 work) |
+| `docs/` | `V2_PLAN.md`: v2 status, how to resume, decisions |
 | `reports/` | Check outputs and preview images |
 | `tests/` | MuJoCo-track tests (schema, mapping, layouts, backend, stages) |
 
@@ -111,7 +111,7 @@ ROS users: unset `PYTHONPATH` inside both venvs (ROS packages otherwise shadow t
 
 ## Run
 
-Newton track (details and the rest of the commands in the report):
+Newton track (v2 commands: [docs/V2_PLAN.md](docs/V2_PLAN.md)):
 
 ```bash
 source .venv-newton/bin/activate

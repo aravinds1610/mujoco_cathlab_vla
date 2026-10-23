@@ -9,7 +9,7 @@ with batched cameras.
 The worlds share one coordinate frame (spacing 0); SolverMuJoCo(separate_worlds=True) keeps their
 physics apart and the tiled camera renders each world's own shapes.
 
-Newton workarounds (see docs/NEWTON_REPORT.md):
+Newton workarounds:
 - task_scene.to_newton_xml fixes mesh paths and short solref/solimp attributes;
 - add_mjcf does not import <camera> tags: cameras are rebuilt here from isaac_reference.json;
 - the tiled renderer has no light intensity or colour: each world's linear HDR image is scaled by its
