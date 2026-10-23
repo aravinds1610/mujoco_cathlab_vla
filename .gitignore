@@ -10,6 +10,7 @@ aravind-handoff.md
 # Python / tooling
 .venv/
 .venv-newton/
+.venv-eval/
 __pycache__/
 *.pyc
 .pytest_cache/

@@ -175,10 +175,12 @@ class NewtonTaskSim:
         m.shape_color.assign(color)
 
     # -- episode setup --------------------------------------------------
-    def reset(self, cfgs, jitters=None) -> None:
-        """Apply one EpisodeConfig (and optional xy layout jitter) per world, put the robot at home, settle."""
+    def reset(self, cfgs, jitters=None, right_qs=None) -> None:
+        """Apply one EpisodeConfig (and optional xy layout jitter) per world, put the robot at home (or the
+        right arm at right_qs[w], for near-start episodes), settle."""
         assert len(cfgs) == self.n
         jitters = jitters if jitters is not None else [(0.0, 0.0)] * self.n
+        right_qs = right_qs if right_qs is not None else [None] * self.n
         self.cfgs = list(cfgs)
         self.targets = [c.object for c in cfgs]
         self.center_z = np.array([self.variation.objects[c.object].center_z() for c in cfgs])
@@ -191,6 +193,8 @@ class NewtonTaskSim:
         for w, cfg in enumerate(cfgs):
             p = episode_params(self.variation, cfg, jitters[w])
             q[self.q16[w]] = home16
+            if right_qs[w] is not None:
+                q[self.q16[w][8:15]] = right_qs[w]
             for n in OBJECTS:
                 pos, wxyz = p["poses"][n]
                 q[self.obj_q[n][w]:self.obj_q[n][w] + 7] = [*pos, wxyz[1], wxyz[2], wxyz[3], wxyz[0]]
@@ -214,6 +218,9 @@ class NewtonTaskSim:
             s.joint_qd.assign(qd)
             newton.eval_fk(self.model, s.joint_q, s.joint_qd, s)
         self.last_action = np.tile(np.concatenate([HOME_Q, [1.0], HOME_Q, [1.0]]).astype(np.float32), (self.n, 1))
+        for w, rq in enumerate(right_qs):
+            if rq is not None:
+                self.last_action[w, 8:15] = rq
         for _ in range(SETTLE_FRAMES):
             self.step(self.last_action)
 

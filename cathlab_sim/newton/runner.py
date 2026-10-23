@@ -26,6 +26,7 @@ from cathlab_sim.spec_io import REPO
 INSTRUCTIONS = ("Hand me the {object}", "Please pass the {object}", "Can you give me the {object}")
 NOOP_JOINT = 1e-4  # rad (handoff A6)
 POSE_JITTER = 0.01  # m, for the extra seeds
+NEAR_XY, NEAR_Z = 0.08, (0.06, 0.18)  # near-start episodes: TCP offset from the grasp point (m)
 
 
 def instruction(cfg) -> str:
@@ -68,15 +69,44 @@ def _init_worker(render: bool = False):
     _cpu = CpuTaskSim(render=render)
 
 
+def _sample_near_q(cfg, jitter, tries: int = 20):
+    """A right-arm pose with the TCP pointing down somewhere around the target: +-NEAR_XY sideways,
+    NEAR_Z above the grasp height, random yaw. Rejected if IK misses or the settle disturbs an object."""
+    from cathlab_sim.expert import PAD_CENTRE_CLOSED, TABLE_CLEARANCE, TIP_CLOSED, _yaw_quat
+    from cathlab_sim.ik import solve_ik
+    from cathlab_sim.newton.task_scene import OBJECTS, TABLE_TOP
+    from cathlab_sim.scene import HOME_Q
+    rng = np.random.default_rng(cfg.seed + 7_000_003)
+    _cpu.reset(cfg, jitter=jitter)
+    obs = _cpu.task_obs()
+    g = obs["grasp_pos"][0]
+    rest = {n: p.copy() for n, (p, _) in obs["objects"].items()}
+    grasp_z = max(g[2] + PAD_CENTRE_CLOSED, TABLE_TOP + TIP_CLOSED + TABLE_CLEARANCE)
+    for _ in range(tries):
+        target = np.array([g[0] + rng.uniform(-NEAR_XY, NEAR_XY), g[1] + rng.uniform(-NEAR_XY, NEAR_XY),
+                           grasp_z + rng.uniform(*NEAR_Z)])
+        q, pe, re = solve_ik(_cpu.model, _cpu.data, "right", target, _yaw_quat(rng.uniform(-np.pi, np.pi)),
+                             q_init=np.array(HOME_Q))
+        if pe > 0.005 or re > 0.03:
+            continue
+        _cpu.reset(cfg, jitter=jitter, right_q=q)
+        moved = max(np.linalg.norm(_cpu.task_obs()["objects"][n][0] - rest[n]) for n in OBJECTS)
+        if moved < 0.003:
+            return q
+    return None
+
+
 def plan_one(job: dict) -> dict:
-    """Plan one episode on CPU; optionally execute it on CPU too (sim2sim, fallback recording)."""
+    """Plan one episode on CPU; optionally execute it on CPU too (sim2sim, fallback recording).
+    job["near"]: start the right arm near the target instead of at HOME_Q (falls back to home if no pose fits)."""
     from cathlab_sim.newton.expert_fr3 import TaskExpert
     from cathlab_sim.newton.variation import EpisodeConfig
     cfg = EpisodeConfig(**job["cfg"])
     jitter = np.array(job.get("jitter", [0.0, 0.0]))
-    _cpu.reset(cfg, jitter=jitter)
+    right_q = _sample_near_q(cfg, jitter) if job.get("near") else None
+    _cpu.reset(cfg, jitter=jitter, right_q=right_q)
     actions = TaskExpert(_cpu.model, _cpu.variation).plan(_cpu.data, _cpu.task_obs(), cfg.object)
-    out = {"actions": actions}
+    out = {"actions": actions, "right_q": None if right_q is None else right_q.tolist()}
     if job.get("run_cpu"):
         tracker = StageTracker(1)
         rec = {"state": [], "success": [], **{c: [] for c in CAMERAS}} if job.get("record") else None
@@ -100,13 +130,14 @@ def make_pool(processes: int, render: bool = False):
 
 
 # -- Newton side ----------------------------------------------------------------
-def run_newton_batch(sim, cfgs, plans, jitters=None, record: bool = False):
+def run_newton_batch(sim, cfgs, plans, jitters=None, record: bool = False, right_qs=None):
     """Execute up to sim.n planned episodes in parallel worlds. Returns per-episode dicts."""
     n, k = sim.n, len(cfgs)
     cfgs_p = list(cfgs) + [cfgs[0]] * (n - k)
     plans_p = list(plans) + [plans[0]] * (n - k)
     jit = list(jitters if jitters is not None else [np.zeros(2)] * k) + [np.zeros(2)] * (n - k)
-    sim.reset(cfgs_p, jitters=jit)
+    rq = list(right_qs if right_qs is not None else [None] * k) + [None] * (n - k)
+    sim.reset(cfgs_p, jitters=jit, right_qs=rq)
     T = np.array([len(p) for p in plans_p])
     tracker = StageTracker(n)
     final = [None] * n
@@ -234,10 +265,11 @@ def cmd_generate(args):
         for i in range(0, len(cfgs), batch):
             cb, jb = cfgs[i:i + batch], jit[i:i + batch]
             jobs = [{"cfg": c.model_dump(), "jitter": j.tolist(), "run_cpu": args.engine == "mujoco",
-                     "record": args.engine == "mujoco"} for c, j in zip(cb, jb)]
+                     "record": args.engine == "mujoco", "near": args.near} for c, j in zip(cb, jb)]
             plans = pool.map(plan_one, jobs)
             if args.engine == "newton":
-                res = run_newton_batch(sim, cb, [p["actions"] for p in plans], jb, record=True)
+                res = run_newton_batch(sim, cb, [p["actions"] for p in plans], jb, record=True,
+                                       right_qs=[p["right_q"] for p in plans])
             else:
                 res = []
                 for p in plans:
@@ -246,8 +278,9 @@ def cmd_generate(args):
                     r["success"] = np.array(p["cpu_success_trace"])
                     res.append({"success": p["cpu_success"], "failure_stage": p["cpu_failure_stage"],
                                 "n_frames": len(p["actions"]), "record": r})
-            for cfg, j, r in zip(cb, jb, res):
-                name = f"{cfg.object}_l{cfg.layout_id}_o{cfg.obj_color_id}_t{cfg.table_color_id}_s{cfg.seed}"
+            for cfg, j, r, p in zip(cb, jb, res, plans):
+                name = f"{cfg.object}_l{cfg.layout_id}_o{cfg.obj_color_id}_t{cfg.table_color_id}_s{cfg.seed}" + \
+                    ("_near" if p["right_q"] is not None else "")
                 kept = None
                 if r["success"]:
                     rec = drop_noops(r["record"], True)
@@ -256,6 +289,7 @@ def cmd_generate(args):
                     saved += 1
                 log.write(json.dumps({"episode": name if r["success"] else None, **cfg.model_dump(),
                                       "pose_jitter_m": [round(float(x), 4) for x in j],
+                                      "start": "near" if p["right_q"] is not None else "home", "right_q": p["right_q"],
                                       "instruction": instruction(cfg), "success": r["success"],
                                       "failure_stage": r["failure_stage"], "n_frames_raw": r["n_frames"],
                                       "n_frames_kept": kept, "engine": args.engine, **ver}) + "\n")
@@ -285,6 +319,7 @@ def main():
     g.add_argument("--worlds", type=int, default=16)
     g.add_argument("--procs", type=int, default=16)
     g.add_argument("--engine", choices=["newton", "mujoco"], default="newton")
+    g.add_argument("--near", action="store_true", help="start the right arm near the target (recovery data)")
     args = ap.parse_args()
     {"check": cmd_check, "generate": cmd_generate}[args.cmd](args)
 

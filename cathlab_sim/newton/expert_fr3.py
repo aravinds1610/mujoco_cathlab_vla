@@ -56,7 +56,9 @@ class TaskExpert(ScriptedExpert):
         over = np.array([tx, ty, place_z + CARRY_H])
         place = np.array([tx, ty, place_z])
 
-        q = np.array(HOME_Q)
+        # start from wherever the right arm is (HOME_Q, or a near-start pose)
+        q0 = np.array([data.joint(f"right_fr3v2_joint{i}").qpos[0] for i in range(1, 8)])
+        q = q0.copy()
         pick_quat, q = self._best_quat(data, above, [_yaw_quat(y) for y in yaws], q)
         # upright objects can be released at any yaw; the syringe keeps a multiple of 90 deg
         place_quat, _ = self._best_quat(data, over, [_yaw_quat(y) for y in
@@ -64,7 +66,7 @@ class TaskExpert(ScriptedExpert):
                                                        [yaws[0] + k * math.pi / 2 for k in range(4)])], q)
         cur_quat = np.zeros(4)
         mujoco.mju_mat2Quat(cur_quat, data.site("right_tcp").xmat)
-        self.actions, self.q, self.g = [], np.array(HOME_Q), 1.0
+        self.actions, self.q, self.g = [], q0, 1.0
         self._move(data, tcp0, above, cur_quat, pick_quat, FAST)
         self._move(data, above, grasp, pick_quat, pick_quat, SLOW)
         self._gripper(data, 0.0, ramp_s=0.5, hold_s=0.4)

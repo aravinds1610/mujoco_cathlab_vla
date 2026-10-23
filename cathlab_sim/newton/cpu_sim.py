@@ -41,7 +41,8 @@ class CpuTaskSim:
         self.light = m.light("key_light").id
         self.base_light = m.light_diffuse[self.light].copy()
 
-    def reset(self, cfg, jitter=(0.0, 0.0)) -> None:
+    def reset(self, cfg, jitter=(0.0, 0.0), right_q=None) -> None:
+        """right_q: optional start pose (7 joints) for the right arm instead of HOME_Q (near-start episodes)."""
         m, d = self.model, self.data
         p = episode_params(self.variation, cfg, jitter)
         self.cfg, self.target = cfg, cfg.object
@@ -62,6 +63,12 @@ class CpuTaskSim:
         m.light_diffuse[self.light] = np.clip(self.base_light * p["light_gain"], 0, 1)
         set_home(m, d)
         self.last_action = home_action()
+        if right_q is not None:
+            for i, v in enumerate(right_q, start=1):
+                d.qpos[m.joint(f"right_fr3v2_joint{i}").qposadr[0]] = v
+                d.ctrl[m.actuator(f"right_fr3v2_joint{i}").id] = v
+            self.last_action[8:15] = right_q
+            mujoco.mj_forward(m, d)
         for _ in range(SETTLE_FRAMES):
             self.step(self.last_action)
 
