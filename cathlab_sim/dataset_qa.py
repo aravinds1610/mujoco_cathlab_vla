@@ -1,4 +1,4 @@
-"""Dataset QA report (challenge stage 02, "dataset intelligence") for a generated LeRobot dataset.
+"""Dataset QA report for a generated LeRobot dataset.
 
     python -m cathlab_sim.dataset_qa datasets/handover_mujoco_scripted_v1 --out reports/qa_v1
 

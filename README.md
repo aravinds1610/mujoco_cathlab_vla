@@ -78,9 +78,9 @@ For quantile-normalized policies (π0.5), use `revision="v1.0.1"`: same episodes
 
 | Track | State | Details |
 |---|---|---|
-| v1 data in Newton | ✅ Newton port, expert, variation and dataset done. Expert 100 % on train and all held-out tiers; CPU MuJoCo vs Newton agree on 60/60 episodes | `cathlab_sim/newton/check_n1.py`, `runner.py` |
+| v1 data in Newton | ✅ Newton port, expert, variation and dataset done. Expert 100 % on train and all held-out tiers; CPU MuJoCo vs Newton agree on 60/60 episodes | `cathlab_sim/newton/check_newton_port.py`, `runner.py` |
 | SmolVLA on the Newton data | ⚠️ Trained (v1 model above). Inputs verified identical live vs training; first actions match the expert (0.02–0.04 rad). Closed loop it approaches to 6–8 cm, then stalls: no recovery examples in the data. Chunk-switch jitter fixed by blending (max jump 0.40 → 0.05 rad). Next: near-target start poses in the data, then continue training | `cathlab_sim/newton/watch.py`, `diag_policy.py` |
-| v2: surgical instruments, both arms | ✅ Dataset published (above): expert 60/60 in Newton and CPU MuJoCo on every arm × instrument × start; 640 episodes incl. near-target and drop-recovery starts. ⏳ Fine-tuning and evaluation deferred (evaluation tool ready: `watch.py --task v2 --tiers ... --report`) | [docs/V2_PLAN.md](docs/V2_PLAN.md) |
+| v2: surgical instruments, both arms | ✅ Dataset published (above): expert 60/60 in Newton and CPU MuJoCo on every arm × instrument × start; 640 episodes incl. near-target and drop-recovery starts. ⏳ Next: fine-tune SmolVLA from the base model (separate from v1), then evaluate (evaluation tool ready: `watch.py --task v2 --tiers ... --report`) | [docs/V2_PLAN.md](docs/V2_PLAN.md) |
 | MuJoCo track (v1, left arm) | Superseded by the Newton track. Backend, expert (78 %), generator, eval harness | `cathlab_sim/` (top level) |
 
 Throughput on this laptop (RTX 4060 8 GB, i9-14900HX), with cameras: Newton ~1,580 episodes/h at 32 worlds; CPU MuJoCo ~1,170/h per process, ~2,990/h with 12 processes.
@@ -89,7 +89,7 @@ Throughput on this laptop (RTX 4060 8 GB, i9-14900HX), with cameras: Newton ~1,5
 
 | Path | What it does |
 |---|---|
-| `cathlab_sim/newton/` | Newton track: task scenes (v1 right arm; v2 instruments, both arms: `instruments.py`), `NewtonTaskSim` (parallel worlds, batched cameras), CPU twin, shared stage checks, expert, generator, LeRobot converter, N1–N5 checks |
+| `cathlab_sim/newton/` | Newton track: task scenes (v1 right arm; v2 instruments, both arms: `instruments.py`), `NewtonTaskSim` (parallel worlds, batched cameras), CPU twin, shared stage checks, expert, generator, LeRobot converter, port and expert checks |
 | `configs/variation/cathlab_fr3_newton.yaml` | v1 variation grid: geometry, palettes, table colours, splits, mass/friction/light ranges |
 | `cathlab_sim/` (top level) | MuJoCo track: robot model and 16-D mapping, scene, backend, IK, v1 expert, generator, evaluation, SmolVLA adapter, viewer |
 | `docs/` | `V2_PLAN.md`: v2 status, how to resume, decisions |
@@ -115,8 +115,8 @@ Newton track (v2 commands: [docs/V2_PLAN.md](docs/V2_PLAN.md)):
 
 ```bash
 source .venv-newton/bin/activate
-python -m cathlab_sim.newton.check_n1                 # Newton port checks
-python -m cathlab_sim.newton.runner check             # expert success per object
+python -m cathlab_sim.newton.check_newton_port    # Newton port checks
+python -m cathlab_sim.newton.runner check        # expert success per object
 python -m cathlab_sim.newton.runner generate --out datasets/newton_raw/v1 --count 384 --worlds 32
 source .venv/bin/activate
 python -m cathlab_sim.newton.convert --raw datasets/newton_raw/v1 --out datasets/cathlab_fr3_newton_v1
@@ -139,7 +139,7 @@ python -m cathlab_sim.watch --episodes 5               # live viewer
 
 - Robot models: [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) `franka_fr3_v2` and `robotiq_2f85` (licences in their folders).
 - Physics and rendering: [Newton](https://github.com/newton-physics/newton), [MuJoCo](https://github.com/google-deepmind/mujoco) and [MuJoCo-Warp](https://github.com/google-deepmind/mujoco_warp) (Apache-2.0).
-- `cathlab_sim/newton/variation.py`: copied unchanged from the team repo (Rakeshdharan/vla-cathlab-companion@9deeb21, `dataengine/variation.py`).
+- `cathlab_sim/newton/variation.py`: copied unchanged from [Rakeshdharan/vla-cathlab-companion](https://github.com/Rakeshdharan/vla-cathlab-companion) @ `9deeb21` (`dataengine/variation.py`).
 - v2 instrument and tray models: [NVIDIA Isaac for Healthcare asset catalog](https://github.com/isaac-for-healthcare/i4h-asset-catalog) (Lightwheel assets), **CC BY-NC 4.0** (non-commercial, attribution). Downloaded into `external/` (not in git).
 - Meshes (not used): CC BY 4.0 from Sketchfab via Objaverse, see `assets/meshes/ATTRIBUTION.md`.
 - Base model: [SmolVLA](https://huggingface.co/lerobot/smolvla_base) via [LeRobot](https://github.com/huggingface/lerobot).

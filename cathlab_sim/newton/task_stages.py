@@ -12,7 +12,7 @@ MuJoCo contact lists; here contact is approximated geometrically (see the table)
 | transport | target xy within the tray                                                  |
 | place     | in the tray, resting on its floor, slow, gripper open, pinch > 4 cm away   |
 
-Success (handoff A6): every stage latched in order AND the place condition has held for
+Success: every stage latched in order AND the place condition has held for
 SUCCESS_HOLD consecutive frames.
 """
 import numpy as np

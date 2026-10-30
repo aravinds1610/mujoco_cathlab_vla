@@ -1,6 +1,6 @@
 """16-D action/state mapping between the FR3 Duo dataset schema and MuJoCo.
 
-Schema (matches the Siemens LeRobot data, robot_type fr3_duo, 30 Hz):
+Schema (robot_type fr3_duo, 30 Hz):
   [left_joint1..7, left_gripper, right_joint1..7, right_gripper]
   arm joints: absolute radians (action = target, state = measured)
   gripper:    normalized, 1 = open, 0 = closed
@@ -15,7 +15,7 @@ from cathlab_sim.scene import SIDES
 
 NAMES = [f"{side}_{part}" for side in SIDES for part in [f"joint{i}" for i in range(1, 8)] + ["gripper"]]
 CONTROL_HZ = 30
-GRIPPER_CLOSED_RAD = 0.8   # Siemens gripper_contract.closed_joint_rad; Menagerie driver range is 0..0.8
+GRIPPER_CLOSED_RAD = 0.8   # fully closed; Menagerie driver range is 0..0.8
 GRIPPER_CTRL_MAX = 255.0   # Menagerie 2F-85 ctrlrange
 
 

@@ -1,6 +1,6 @@
-"""Team interfaces, copied verbatim from the handoff (aravind-handoff.md §4).
+"""Interfaces shared by the simulator, policies, data generation and evaluation.
 
-Do not change field names or signatures: the team pipeline imports these shapes.
+Keep field names and signatures stable: every pipeline stage imports these shapes.
 Only GapSpec is promoted from a field list to a pydantic model so it can be loaded from JSON.
 """
 from abc import ABC, abstractmethod

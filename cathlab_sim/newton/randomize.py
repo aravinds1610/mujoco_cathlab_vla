@@ -1,4 +1,4 @@
-"""N3: per-world domain randomisation preview and check.
+"""Per-world domain randomisation preview and check.
 
 Where each EpisodeConfig value is applied (both engines read task_scene.episode_params):
 | Value                  | Newton (scene.NewtonTaskSim.reset)                 | CPU MuJoCo (cpu_sim)  |
@@ -11,7 +11,7 @@ Where each EpisodeConfig value is applied (both engines read task_scene.episode_
 
 Per-world colours work in the tiled renderer, so no batching by (palette, table colour) is needed.
 
-    python -m cathlab_sim.newton.randomize     # -> reports/newton_n3_preview.png, newton_n3_world0.png
+    python -m cathlab_sim.newton.randomize     # -> reports/newton_randomize_preview.png, newton_randomize_world0.png
 """
 import json
 
@@ -31,8 +31,8 @@ def main(n: int = 8):
     imgs = sim.images()
     ext = imgs["external_camera"]
     grid = np.concatenate([np.concatenate(list(ext[r * 4:(r + 1) * 4]), axis=1) for r in range(n // 4)], axis=0)
-    Image.fromarray(grid).save(REPO / "reports/newton_n3_preview.png")
-    Image.fromarray(np.concatenate([imgs[c][0] for c in CAMERAS], axis=1)).save(REPO / "reports/newton_n3_world0.png")
+    Image.fromarray(grid).save(REPO / "reports/newton_randomize_preview.png")
+    Image.fromarray(np.concatenate([imgs[c][0] for c in CAMERAS], axis=1)).save(REPO / "reports/newton_randomize_world0.png")
     mass = sim.model.body_mass.numpy()
     mu = sim.model.shape_material_mu.numpy()
     rows = []

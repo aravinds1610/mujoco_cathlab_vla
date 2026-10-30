@@ -1,12 +1,8 @@
 # Large or third-party content: fetched separately (see README)
 external/
-challenge/
 *.zip
 # Generated datasets (large)
 datasets/
-# Team-internal brief, not for sharing
-aravind-handoff.md
-2026-10-23-aravind-newton-fr3-session.md
 # Python / tooling
 .venv/
 .venv-newton/

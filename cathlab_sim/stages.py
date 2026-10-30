@@ -1,4 +1,4 @@
-"""Stage predicates (handoff §2) computed from MuJoCo state.
+"""Stage predicates computed from MuJoCo state.
 
 | Stage     | Predicate                                                |
 |-----------|----------------------------------------------------------|

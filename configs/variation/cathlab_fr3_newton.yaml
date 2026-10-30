@@ -1,6 +1,5 @@
-# VariationSpec (cathlab_sim/newton/variation.py, team code) for the right-arm FR3 Duo task.
-# Same grid as the team's cathlab_v1.yaml (palettes, table colours, splits, continuous ranges);
-# only the geometry is ours. Frame: world xy (robot mount centre at the origin, robot faces +x,
+# VariationSpec (cathlab_sim/newton/variation.py) for the right-arm FR3 Duo task.
+# Grid: palettes, table colours, splits and continuous ranges; geometry is specific to this scene. Frame: world xy (robot mount centre at the origin, robot faces +x,
 # robot's right = -y); z is relative to the table top (cathlab_sim/scene.py TABLE_TOP = 0.8414 m).
 variation_id: cathlab_fr3_newton
 
@@ -15,7 +14,7 @@ scene:
   reach_corridor_width: 0.15         # the bottle must not stand between the robot and the target
   tall_object_height: 0.10
 
-# Handoff A2 sizes (the team yaml's bottle is 0.25 m tall; A2 says 152 mm).
+# Object sizes (realistic: the bottle is 152 mm tall).
 objects:
   bottle:  {shape: cylinder, radius: 0.0385, length: 0.152, upright: true,  mass: 0.30,  grasp: top}
   vial:    {shape: cylinder, radius: 0.0135, length: 0.042, upright: true,  mass: 0.02,  grasp: top}

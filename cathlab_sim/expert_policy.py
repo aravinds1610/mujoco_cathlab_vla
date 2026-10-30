@@ -1,8 +1,8 @@
-"""The scripted expert wrapped in the team's PolicyAdapter contract, so it can be evaluated
-like any learned policy (it is our "own expert policy" for the definition of done).
+"""The scripted expert wrapped in the PolicyAdapter interface (contracts.py), so it can be evaluated
+like any learned policy (it is the baseline the learned policies are compared against).
 
 It uses privileged ground truth (object pose, via the backend) and finds the target by
-matching an object name in the instruction (ground-truth ID; the handoff allows this).
+matching an object name in the instruction (ground-truth ID, acceptable for a privileged expert).
 """
 import numpy as np
 

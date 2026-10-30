@@ -9,7 +9,7 @@ Same kinematic plan as v1 (cathlab_sim.expert): above -> descend -> close -> lif
 - upright cylinders have no long axis: try 8 yaws and keep the IK solution with least joint motion;
   the syringe closes across its barrel (TCP yaw = long-axis yaw), at the barrel centre.
 
-    python -m cathlab_sim.newton.expert_fr3 --probe       # N2 reach probe
+    python -m cathlab_sim.newton.expert_fr3 --probe       # reach probe
 """
 import argparse
 import math

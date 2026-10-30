@@ -1,4 +1,4 @@
-"""The contracts must accept the handoff's examples and reject wrong types."""
+"""The contracts must accept valid examples and reject wrong types."""
 import pydantic
 import pytest
 

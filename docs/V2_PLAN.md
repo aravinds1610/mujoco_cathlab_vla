@@ -11,8 +11,8 @@
 | 1 | Assets and scene | ✅ Done | Every instrument stays at rest in both engines; max drift CPU 0.18 mm, Newton 0.03 mm (`reports/v2_assets_check.json`) |
 | 2 | Scripted expert, both arms | ✅ Done | 60/60 in Newton and 60/60 in CPU MuJoCo, every arm × instrument × start (`reports/v2_expert_check.json`) |
 | 3 | Dataset | ✅ Done, published | 640 episodes on HF: [`aravindsuresh16/cathlab_fr3_instruments_v1`](https://huggingface.co/datasets/aravindsuresh16/cathlab_fr3_instruments_v1), tag `v1` |
-| 4 | Fine-tune SmolVLA | ⏸ Deferred | Owner's decision (23 Oct, team presentation). Command ready below |
-| 5 | Evaluate | ⏸ Deferred | Tool ready and tested (`watch.py --task v2 ... --report`) |
+| 4 | Fine-tune SmolVLA | ⏳ Next | Train from the SmolVLA base model, separate from v1. Command ready below |
+| 5 | Evaluate | ⏳ After phase 4 | Tool ready and tested (`watch.py --task v2 ... --report`) |
 | 6 | Publish | ✅ Dataset, README, GitHub | The v2 model is published only if it places at least 1 instrument (owner's rule) |
 
 Git: `main` is pushed and clean. Nothing is running in the background.
@@ -64,14 +64,14 @@ There are three virtual environments: `.venv` (LeRobot: convert and train), `.ve
 
 ### Phase 4: fine-tune SmolVLA
 
-Continue from the v1 model at **batch 12** (owner's choice). Measured memory on the 8 GB GPU: batch 10 at 5.2 GB, batch 16 at 7.3 GB. When training continues from a checkpoint, LeRobot uses the new dataset's normalisation statistics (checked in `lerobot_train.py`).
+Train v2 **separately from v1**: start from the SmolVLA base model (`lerobot/smolvla_base`, the same start v1 had), at **batch 12** (owner's choice). The v1 model is not reused: it was jittery and never completed a pick, and keeping the runs separate keeps the v1/v2 comparison clean. Measured memory on the 8 GB GPU: batch 10 at 5.2 GB, batch 16 at 7.3 GB.
 
 1. Run 100 steps first, to check memory and measure steps per second.
 2. Set `--steps` to fill about 2.5 hours, then run:
 
 ```bash
 source .venv/bin/activate
-lerobot-train --policy.path=outputs/smolvla_newton_v1_16k/checkpoints/016000/pretrained_model --policy.device=cuda \
+lerobot-train --policy.path=lerobot/smolvla_base --policy.device=cuda \
   --policy.push_to_hub=false --dataset.repo_id=aravindsuresh16/cathlab_fr3_instruments_v1 \
   --dataset.root=datasets/cathlab_fr3_instruments_v1 \
   --rename_map='{"observation.images.external_camera":"observation.images.camera1","observation.images.left_wrist_camera":"observation.images.camera2","observation.images.right_wrist_camera":"observation.images.camera3"}' \
@@ -149,12 +149,12 @@ Push the model to Hugging Face only if it places at least one instrument. Then u
 | 21:16 | Plan written for an unattended ~6 h run |
 | 21:36 | Phase 1 passed. Contact-settings fix; texture → average-colour fallback; v1 still 12/12 after the refactor |
 | 21:44 | Phase 2 passed (60/60 both engines); tweezers became clutter. Generation started |
-| 21:46 | Paused for a handoff to a new chat |
+| 21:46 | Paused |
 | 22:00 | Resumed. v2 evaluation tool added. Variation check done; owner chose to train on the current data. Outdated docs removed |
 | 22:03 | **Out of memory:** a test run next to the generation froze the desktop. Switched to one run at a time, 16 worlds |
 | 22:16 | Home and near-target starts done: 270/270 each |
 | 22:30 | Smoke test, then 100 drop-recovery episodes (100 saved of 112 attempts) |
 | 22:36 | Conversion restarted: `--max-saved` had logged 7 unsaved episodes as saved. Fixed |
-| 22:45 | **Plan change:** team presenting tomorrow. Publish the dataset; defer fine-tuning and evaluation |
+| 22:45 | **Plan change:** publish the dataset now; defer fine-tuning and evaluation |
 | 23:00 | Conversion restarted: 4 half-written files from the 22:06 stop. Regenerated identically; converter now checks files first |
 | 23:15 | Dataset published and checked from the Hub. README reframed with a pipeline diagram; everything pushed |

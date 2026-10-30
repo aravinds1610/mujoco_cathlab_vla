@@ -5,7 +5,7 @@ Run in the LeRobot venv (.venv: mujoco 3.3.7, lerobot 0.6.1), never in .venv-new
     python -m cathlab_sim.newton.convert --raw datasets/newton_raw/v1 --out datasets/cathlab_fr3_newton_v1 \
         [--limit 96] [--push aravindsuresh16/cathlab_fr3_newton_v1 --tag v1]
 
-Schema = v1 / Siemens fr3_duo_16d (handoff A3): action and observation.state float32[16], three 224x224
+Schema = v1 / fr3_duo_16d: action and observation.state float32[16], three 224x224
 videos, `success` per frame, `task` = instruction, 30 fps, robot_type fr3_duo; std = 1 for constant
 columns. Episodes are written in the raw log order (= generation_order, object-balanced).
 Also writes meta/episodes_extra.jsonl (full config of every attempt, with episode_index for the saved
@@ -64,7 +64,7 @@ def convert(raw: Path | list[Path], out: Path, repo_id: str, limit: int | None =
         raise RuntimeError(f"{len(bad)} unreadable raw episodes:\n" + "\n".join(bad))
     from lerobot.configs.video import RGBEncoderConfig
     # Streaming encoding skips LeRobot's per-frame PNG step (~2 min per episode otherwise). Codec stays AV1
-    # (libsvtav1, as v1 and the Siemens data); preset 12 = fastest SVT-AV1 speed level.
+    # (libsvtav1, as in v1); preset 12 = fastest SVT-AV1 speed level.
     ds = LeRobotDataset.create(repo_id=repo_id, fps=CONTROL_HZ, features=features(), root=out,
                                robot_type="fr3_duo", use_videos=True, streaming_encoding=True,
                                rgb_encoder=RGBEncoderConfig(vcodec="libsvtav1", preset=PRESET), encoder_threads=4)
@@ -100,9 +100,9 @@ def convert(raw: Path | list[Path], out: Path, repo_id: str, limit: int | None =
         scene_id=scene_id, n_episodes=len(saved), created_by=getpass.getuser(),
         quality_score=round(sum(e["success"] for e in log) / max(len(log), 1), 4),
         notes=(notes or "FR3 Duo, right arm, scripted IK expert (ground-truth poses) planned on CPU MuJoCo. "
-               "Team variation grid (configs/variation/cathlab_fr3_newton.yaml), configs in generation_order. ")
+               "Variation grid (configs/variation/cathlab_fr3_newton.yaml), configs in generation_order. ")
         + f"Physics + rendering engine {engines}; attempts={len(log)}; expert success per object {per_obj}. "
-        f"No-op frames dropped (handoff A6); idle-column stats widened: {len(fixed)} columns.")
+        f"No-op frames dropped; idle-column stats widened: {len(fixed)} columns.")
     (out / "manifest.yaml").write_text(yaml.safe_dump(manifest.model_dump(), sort_keys=False))
     print(f"wrote {len(saved)} episodes -> {out}")
     return manifest

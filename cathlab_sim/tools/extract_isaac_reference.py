@@ -1,10 +1,10 @@
-"""Extract the FR3 Duo layout from the Siemens Isaac USD into isaac_reference.json.
+"""Extract the FR3 Duo layout from an Isaac Sim USD scene into isaac_reference.json.
 
 Everything is expressed relative to the robot (not the room), so the MuJoCo scene
 can copy it: arm bases and head camera in the Duo `mount_link` frame (z up, x forward,
 y = robot's left), wrist cameras and gripper in each arm's `fr3v2_link8` (flange) frame.
 
-Usage: python -m cathlab_sim.tools.extract_isaac_reference <Hackathon_FR3Duo_flattened.usd>
+Usage: python -m cathlab_sim.tools.extract_isaac_reference <FR3Duo_scene.usd>
 """
 import json
 import math

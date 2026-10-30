@@ -1,4 +1,4 @@
-"""A fine-tuned SmolVLA checkpoint wrapped in the team's PolicyAdapter contract.
+"""A fine-tuned SmolVLA checkpoint wrapped in the PolicyAdapter interface (contracts.py).
 
     policy = SmolVLAPolicyAdapter("outputs/smolvla_v1_3k/checkpoints/last/pretrained_model")
     chunk = policy.predict(obs, "Hand me the syringe")   # (n_exec, 16) joint targets + grippers

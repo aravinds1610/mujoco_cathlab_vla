@@ -1,4 +1,4 @@
-"""Right-arm FR3 Duo task scene: the team objects (bottle, vial, syringe) and a tray within the
+"""Right-arm FR3 Duo task scene: three objects (bottle, vial, syringe) and a tray within the
 right arm's reach. Pure MjSpec, so the CPU MuJoCo planner and Newton load the same model.
 
 Robot, cameras, table and tray come from cathlab_sim.scene (v1); only the task layout differs:
@@ -19,7 +19,7 @@ from cathlab_sim.spec_io import REPO
 DEFAULT_VARIATION = REPO / "configs/variation/cathlab_fr3_newton.yaml"
 TABLE_TOP = v1.TABLE_TOP
 OBJECTS = ("bottle", "vial", "syringe")
-# Syringe composite (handoff A2): barrel 15 x 100 mm + plunger 8 x 40 mm + flange 30 x 10 x 3 mm,
+# Syringe composite: barrel 15 x 100 mm + plunger 8 x 40 mm + flange 30 x 10 x 3 mm,
 # 140 mm long, lying along body x with the origin at the composite's centre. The barrel is a capsule
 # (capsule-box contacts are analytic; a lying cylinder balances on one GJK contact point).
 SYRINGE_BARREL_X = -0.02          # barrel centre in the body frame (the grasp point)
@@ -57,7 +57,7 @@ def _add_object(world, name: str, obj: ObjectSpec, rgba, park_xy):
 
 
 def build_task_spec(variation: VariationSpec | None = None) -> mujoco.MjSpec:
-    """v1 robot + table + cameras, a right-arm tray, and the team objects (parked behind the robot)."""
+    """v1 robot + table + cameras, a right-arm tray, and the task objects (parked behind the robot)."""
     variation = variation or load_variation()
     spec = build_base_spec(variation.table_colors[0])
     world = spec.worldbody

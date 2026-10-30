@@ -12,7 +12,7 @@ DEFAULT_SCENE = REPO / "configs/scenes/cathlab_minimal.yaml"
 
 
 class ObjectDef(BaseModel):
-    """A primitive task object. AR4 will add mesh objects (MJCF files) alongside."""
+    """A primitive task object (mesh objects are defined separately)."""
     type: Literal["capsule", "box"]
     size: list[float]                 # capsule: [radius, half-length]; box: half-extents
     mass: float

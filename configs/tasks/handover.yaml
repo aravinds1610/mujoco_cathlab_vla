@@ -1,4 +1,4 @@
-# TaskSpec (contracts.TaskSpec) for the reference task in the handoff (§2).
+# TaskSpec (contracts.TaskSpec) for the handover reference task.
 task_id: handover
 instruction_templates:
   - "Hand me the {object}"

@@ -1,4 +1,4 @@
-"""MujocoBackend: the team's SimBackend contract on top of the cathlab scene.
+"""MujocoBackend: the SimBackend interface (contracts.py) on top of the cathlab scene.
 
 Observation keys follow the LeRobot dataset schema so episodes can be written as-is:
   observation.state                      float32[16]

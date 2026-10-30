@@ -1,4 +1,4 @@
-# Copied from the team repo (Rakeshdharan/vla-cathlab-companion@9deeb21, dataengine/variation.py); team code, unchanged.
+# Copied unchanged from Rakeshdharan/vla-cathlab-companion@9deeb21 (dataengine/variation.py).
 import itertools
 from pathlib import Path
 from typing import Literal

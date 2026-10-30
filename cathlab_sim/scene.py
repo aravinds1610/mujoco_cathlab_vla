@@ -1,6 +1,6 @@
 """Minimal FR3 Duo cathlab scene built with MjSpec.
 
-Robot embodiment copied from the Siemens FR3 Duo (see isaac_reference.json):
+Robot embodiment from the FR3 Duo reference layout (isaac_reference.json):
 V-mount arm bases, gripper finger orientation, head + wrist camera mounts.
 Everything else (table, trays, objects) is our own and will be randomized.
 World frame: Z-up, robot faces +X, robot's left = +Y.
@@ -39,7 +39,7 @@ REF = json.loads((PKG / "isaac_reference.json").read_text())
 SIDES = ("left", "right")
 MOUNT_Z = REF["mount_height_above_floor"]  # Duo mount_link height (~1.02 m)
 TABLE_TOP = MOUNT_Z - 0.18                 # Isaac work surfaces sit ~0.18 m below the mount
-# Ready pose from the Siemens Isaac doc: [0, -45, 0, -135, 0, 90, 45] deg
+# Ready pose: [0, -45, 0, -135, 0, 90, 45] deg
 HOME_Q = np.deg2rad([0, -45, 0, -135, 0, 90, 45])
 TCP_IN_LINK8 = REF["gripper"]["tcp_in_link8"]
 # Menagerie 2F-85 fingers open along flange x; the Duo's open along flange y -> +90 deg about z

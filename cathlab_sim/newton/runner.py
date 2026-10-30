@@ -1,12 +1,12 @@
 """Plan on CPU MuJoCo (process pool), execute in Newton (N worlds per batch), judge with task_stages.
 
-    python -m cathlab_sim.newton.runner check  [--per-object 20] [--worlds 16]   # N2 expert check
+    python -m cathlab_sim.newton.runner check  [--per-object 20] [--worlds 16]   # expert check
     python -m cathlab_sim.newton.runner generate --out <raw dir> [--start 0] [--count 96] [--seed 0]
     python -m cathlab_sim.newton.runner generate --engine mujoco ...             # CPU fallback / baseline
 
 `generate` writes one raw .npz per successful episode (state, action, external_camera,
 left_wrist_camera, right_wrist_camera, success, task) and appends every attempt to
-<out>/meta/episodes_extra.jsonl. Configs come from the team's generation_order over the train grid
+<out>/meta/episodes_extra.jsonl. Configs come from variation.py's generation_order over the train grid
 (seed 0 = the 384-cell grid; seeds 1, 2 = resampled mass/friction/light + 1 cm pose jitter).
 """
 import argparse
@@ -24,7 +24,7 @@ from cathlab_sim.scene import CAMERAS
 from cathlab_sim.spec_io import REPO
 
 INSTRUCTIONS = ("Hand me the {object}", "Please pass the {object}", "Can you give me the {object}")
-NOOP_JOINT = 1e-4  # rad (handoff A6)
+NOOP_JOINT = 1e-4  # rad
 POSE_JITTER = 0.01  # m, for the extra seeds
 NEAR_XY, NEAR_Z = 0.08, (0.06, 0.18)  # near-start episodes: TCP offset from the grasp point (m)
 DROP_SETTLE = 45      # frames (1.5 s) the opened gripper holds still while a dropped object comes to rest
@@ -251,7 +251,7 @@ def run_newton_batch(sim, cfgs, plans, jitters=None, record: bool = False, arm_q
 
 
 def drop_noops(rec: dict, success: bool) -> dict:
-    """Handoff A6: drop frames whose joint targets move < 1e-4 rad on all joints with an unchanged gripper
+    """Drop frames whose joint targets move < 1e-4 rad on all joints with an unchanged gripper
     command (vs the previous kept frame). The last kept frame carries the episode outcome."""
     act = rec["action"]
     keep = [0]
@@ -274,7 +274,7 @@ def save_npz(path: Path, rec: dict, task: str):
 
 # -- commands ---------------------------------------------------------------------
 def cmd_check(args):
-    """N2: expert success per object on the first per_object train configs of each object, in Newton."""
+    """Expert success per object on the first per_object train configs of each object, in Newton."""
     from cathlab_sim.newton.scene import NewtonTaskSim
     cfgs = configs(0)[:3 * args.per_object]
     pool = make_pool(args.procs)

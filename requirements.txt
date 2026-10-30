@@ -6,7 +6,7 @@ pyyaml>=6
 pillow>=10
 pytest>=8
 matplotlib>=3.8   # dataset QA plot
-# LeRobot v3 datasets + SmolVLA fine-tuning; same lerobot version as the Siemens datasets
+# LeRobot v3 datasets + SmolVLA fine-tuning
 lerobot[dataset,av-dep,smolvla]==0.6.1
 # Only for cathlab_sim/tools/extract_isaac_reference.py (reads the Isaac USD)
 usd-core>=25.0

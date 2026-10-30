@@ -1,5 +1,5 @@
 {
-  "source": "challenge/env/Hackathon_FR3Duo_flattened.usd",
+  "source": "FR3 Duo Isaac Sim scene (USD)",
   "frames": "mount_link: z up, x forward, y robot-left; link8: arm flange",
   "arm_bases": {
     "left": {
