@@ -21,6 +21,7 @@ os.environ.setdefault("MUJOCO_GL", "glfw")
 import mujoco
 import numpy as np
 
+from cathlab_sim.contracts import STAGES
 from cathlab_sim.newton.runner import make_task
 from cathlab_sim.newton.task_stages import StageTracker
 from cathlab_sim.robot_io import CONTROL_HZ
@@ -76,10 +77,16 @@ def main():
     ap.add_argument("--seed0", type=int, default=100_000)
     ap.add_argument("--episodes", type=int, default=3)
     ap.add_argument("--say", default=None, help="name this object in the instruction (swap test)")
+    ap.add_argument("--near-start", action="store_true",
+                    help="policy only: start the acting arm near the target, as in the near-target training episodes")
+    ap.add_argument("--side-in-prompt", action="store_true",
+                    help="append 'with the left/right arm' (the acting arm) to the instruction")
     ap.add_argument("--speed", type=float, default=1.0)
     ap.add_argument("--blend", type=int, default=10, help="cross-fade frames at chunk switches (0 = off)")
     ap.add_argument("--no-viewer", action="store_true")
     ap.add_argument("--report", default=None, help="write per-episode results and a summary to this JSON file")
+    ap.add_argument("--trace", default=None, help="write per-frame traces (pinch-grasp gap, object height, "
+                                                  "actions, stage flags) of every episode to this .npz file")
     args = ap.parse_args()
     assert args.expert or args.ckpt, "give --ckpt or --expert"
 
@@ -98,7 +105,7 @@ def main():
         for tier in args.tiers:
             every = task.eval_configs(tier, list(range(args.seed0, args.seed0 + n)))
             cfgs += [every[(k % k_obj) * n + k] for k in range(n)]
-    results = []
+    results, traces = [], []
     policy = None
     if not args.expert:
         from cathlab_sim.smolvla_policy import SmolVLAPolicyAdapter
@@ -117,8 +124,12 @@ def main():
                 plan, arm_q = p["actions"], p["arm_q"]
                 if p.get("drop"):  # the dropped instrument's resting poses become this episode's start
                     task.start_override[cfg.seed] = {"poses": p["drop"]["poses"], "side": p["drop"]["side"]}
+            elif args.near_start:  # same sampler as the near-target training episodes (6-18 cm above the target)
+                arm_q = _expert_plan(cfg, args.task, jit, "near")["arm_q"]
             sim.reset([cfg], jitters=[jit], arm_qs=[arm_q])
             instruction = task.instruction(cfg.model_copy(update={"object": args.say}) if args.say else cfg)
+            if args.side_in_prompt:
+                instruction += f" with the {sim.sides[0]} arm"
             mirror.colours(task.episode_params(cfg))
             mirror.sync(sim)
             if viewer is None and not args.no_viewer:
@@ -129,6 +140,7 @@ def main():
             print(f"episode {ep + 1}: {args.start or cfg.tier} start, layout {cfg.layout_id}, {sim.sides[0]} arm, "
                   f"target {cfg.object}, \"{instruction}\"", flush=True)
             tracker, frames, success, t_policy = StageTracker(1), 0, False, []
+            trace = {"gap": [], "height": [], "action": [], "flags": []}
             while frames < MAX_FRAMES and not success:
                 if args.expert:
                     chunk = plan[frames:frames + 25] if frames < len(plan) else plan[-1:].repeat(25, 0)
@@ -145,7 +157,13 @@ def main():
                     t0 = time.perf_counter()
                     sim.step(a[None])
                     frames += 1
-                    success = bool(tracker.update(sim.flags())[0])
+                    o = sim.task_obs()
+                    success = bool(tracker.update(sim.flags(o))[0])
+                    if args.trace:
+                        trace["gap"].append(np.linalg.norm(o["pinch_pos"][0] - o["grasp_pos"][0]))
+                        trace["height"].append(o["target_pos"][0, 2])
+                        trace["action"].append(np.asarray(a, np.float32))
+                        trace["flags"].append([tracker.flags[s][0] for s in STAGES])
                     if viewer is not None:
                         if not viewer.is_running():
                             return
@@ -158,9 +176,12 @@ def main():
             extra = f", policy {1000 * np.mean(t_policy):.0f} ms/call" if t_policy else ""
             print(f"  -> {'SUCCESS' if success else 'failed at ' + str(stage)} after {frames / CONTROL_HZ:.1f} s{extra}",
                   flush=True)
-            results.append({"tier": cfg.tier, "layout": cfg.layout_id, "object": cfg.object, "side": sim.sides[0],
+            results.append({"start": args.start if args.expert else ("near" if arm_q is not None else "home"),
+                            "tier": cfg.tier, "layout": cfg.layout_id, "object": cfg.object, "side": sim.sides[0],
                             "seed": cfg.seed, "instruction": instruction, "success": success, "failure_stage": stage,
                             "seconds": round(frames / CONTROL_HZ, 1)})
+            if args.trace:
+                traces.append({k: np.asarray(v) for k, v in trace.items()})
             if viewer is not None:
                 time.sleep(1.5)
     finally:
@@ -168,6 +189,10 @@ def main():
             viewer.close()
         if args.report and results:
             _write_report(args, results)
+        if args.trace and traces:
+            np.savez_compressed(args.trace, stages=np.array(STAGES),
+                                **{f"ep{i}_{k}": v for i, t in enumerate(traces) for k, v in t.items()})
+            print("trace", args.trace, flush=True)
 
 
 def _write_report(args, results):

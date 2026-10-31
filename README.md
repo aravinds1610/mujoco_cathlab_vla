@@ -17,11 +17,13 @@ flowchart TB
         direction LR
         D1["v1 · 384 episodes<br/>right arm, simple shapes<br/>home starts only"]
         D2["v2 · 640 episodes<br/>both arms, surgical instruments<br/>+ near-target + drop-recovery"]
+        D3["v2.5 · same 640 episodes<br/>acting arm named<br/>in the instruction"]
     end
     subgraph TRAIN["③ Fine-tune SmolVLA · RTX 4060 8 GB"]
         direction LR
         T1["v1 model<br/>from smolvla_base<br/>16k steps, batch 10"]
-        T2["v2 model<br/>continue from v1<br/>batch 12"]
+        T2["v2 model<br/>from smolvla_base<br/>2 epochs, batch 12"]
+        T3["v2.5 model<br/>from smolvla_base<br/>1 epoch, batch 12"]
     end
     subgraph EVAL["④ Evaluate · closed loop in Newton"]
         direction LR
@@ -31,28 +33,28 @@ flowchart TB
         V --> R
         V --> W
     end
-    T1 -- "continue training" --> T2
     GEN --> DATA --> TRAIN --> EVAL
-    EVAL -.-> L["Lesson → next dataset<br/>v1 stalls 6–8 cm from the object (0/6)<br/>so v2 adds near-target and drop-recovery starts"]
+    EVAL -.-> L["Lessons<br/>v1 stalls 6–8 cm from the object (0/6) → v2 adds recovery starts<br/>v2 picks the arm at random (0/48) → v2.5 names the arm: 48/48 correct arm, 2/48 placed<br/>remaining: the gripper closes on a clock, ~9 cm from the instrument"]
 
     classDef done fill:#1f6f43,stroke:#3fb950,color:#ffffff
     classDef note fill:#4a3b00,stroke:#d29922,color:#ffffff,stroke-dasharray:4 3
     class L note
     classDef todo fill:#3a3a3a,stroke:#8b949e,color:#d0d0d0,stroke-dasharray:4 3
-    class S,ST,E,P,K,D1,D2,T1,V,R,W done
-    class T2 todo
+    class S,ST,E,P,K,D1,D2,D3,T1,T2,T3,V,R,W done
 ```
 
-<sub>Green: built and run. Grey dashed: planned (v2 fine-tuning and its evaluation). Amber: what each evaluation changes in the next dataset.</sub>
+<sub>Green: built and run. Amber: what the evaluations showed.</sub>
 
 ### Dataset versions and what they taught
 
 | Dataset | What changed | What the evaluation showed |
 |---|---|---|
 | **v1**: right arm, bottle / vial / syringe, 384 episodes, every episode starts at home | Baseline: simple shapes, one arm, a fixed start | SmolVLA (16k steps) gets its first actions right (0.02–0.04 rad from the expert) and approaches within 6–8 cm, then **stalls: 0/6 placements**. The data never shows the arm *near* the object, so small errors compound and the model has no example of how to correct them |
-| **v2**: both arms, realistic surgical instruments, 640 episodes | Realistic meshes (scissors, trocar, puncture device; tweezers as clutter), the arm on the object's side picks, 45 layouts, and **recovery data**: 270 near-target starts and 100 starts after a dropped instrument | Built to test whether recovery examples fix the stall. **Fine-tuning and evaluation on v2 are the next step** |
+| **v2**: both arms, realistic surgical instruments, 640 episodes | Realistic meshes (scissors, trocar, puncture device; tweezers as clutter), the arm on the object's side picks, 45 layouts, and **recovery data**: 270 near-target starts and 100 starts after a dropped instrument | Fine-tuned from the base model (2 epochs): **0/48 placed**. The model always moves exactly one arm but picks it at random (22/48 correct), because the instruction never says which arm and the model can't infer the instrument's side from the image |
 
-Each later step gets its own row: what changed in the data, and the effect on held-out success.
+| **v2.5**: the same 640 episodes, acting arm named in the instruction ("… with the left arm") | Instruction text only; images, states and actions identical | Arm choice solved (**48/48**) and the first placements (**2/48**, on held-out layouts). Reach still fails: the gripper closes at the expert's usual time but ~9 cm from the instrument, even from near-target starts (0/48). Full analysis: [docs/V2_RESULTS.md](docs/V2_RESULTS.md) |
+
+The project is closed at v2.5. The open question is whether a pipeline mismatch or the model's limited visual grounding is to blame; see [docs/V2_RESULTS.md](docs/V2_RESULTS.md#where-it-was-left).
 
 ![v2 dataset: first frame of 16 episodes (home, near-target and drop-recovery starts)](reports/v2_dataset_variety.png)
 
@@ -65,6 +67,8 @@ Each later step gets its own row: what changed in the data, and the effect on he
 | [**aravindsuresh16/cathlab_fr3_newton_v1**](https://huggingface.co/datasets/aravindsuresh16/cathlab_fr3_newton_v1) | **Right-arm FR3 Duo, bottle / vial / syringe**, physics and rendering in Newton (MuJoCo-Warp). 384 episodes (159,568 frames) = one per cell of the train grid (3 objects × 8 layouts × 4 palettes × 4 table colours; held-out splits left out for evaluation). Per-episode config in `meta/episodes_extra.jsonl`, preview in `preview.gif` |
 | [**aravindsuresh16/smolvla_cathlab_fr3_newton_v1**](https://huggingface.co/aravindsuresh16/smolvla_cathlab_fr3_newton_v1) (model) | SmolVLA fine-tuned on the dataset above (16k steps, batch 10, 2 h 19 min on an RTX 4060 laptop). Research checkpoint: reaches within 6–8 cm of the target, **0/6 placements** so far (see Status) |
 | [**aravindsuresh16/cathlab_fr3_instruments_v1**](https://huggingface.co/datasets/aravindsuresh16/cathlab_fr3_instruments_v1) | **v2: both arms, surgical instruments** (NVIDIA Isaac for Healthcare / Lightwheel meshes), central tray. 640 episodes: 270 home starts, 270 near-target starts, 100 drop-recovery starts. 45 layouts, 4 table colours, light/mass/friction ranges; held-out layouts and colour left out for evaluation. **CC BY-NC 4.0** (non-commercial) because of the instrument assets |
+| [**aravindsuresh16/cathlab_fr3_instruments_v2_5**](https://huggingface.co/datasets/aravindsuresh16/cathlab_fr3_instruments_v2_5) | **v2.5**: the v2 dataset with the acting arm in every instruction (18 instructions instead of 9). Same frames. **CC BY-NC 4.0** |
+| [**aravindsuresh16/smolvla_cathlab_fr3_instruments_v2_5**](https://huggingface.co/aravindsuresh16/smolvla_cathlab_fr3_instruments_v2_5) (model) | SmolVLA fine-tuned on v2.5 from the base model (19,200 steps, batch 12, 3 h 36 min on an RTX 4060 laptop). Research checkpoint: correct arm 48/48, **2/48 placements** |
 | [aravindsuresh16/cathlab_handover_mujoco_v1](https://huggingface.co/datasets/aravindsuresh16/cathlab_handover_mujoco_v1) | Earlier MuJoCo track: left arm, 5 instruments, 200 episodes |
 
 ```python
@@ -79,8 +83,8 @@ For quantile-normalized policies (π0.5), use `revision="v1.0.1"`: same episodes
 | Track | State | Details |
 |---|---|---|
 | v1 data in Newton | ✅ Newton port, expert, variation and dataset done. Expert 100 % on train and all held-out tiers; CPU MuJoCo vs Newton agree on 60/60 episodes | `cathlab_sim/newton/check_newton_port.py`, `runner.py` |
-| SmolVLA on the Newton data | ⚠️ Trained (v1 model above). Inputs verified identical live vs training; first actions match the expert (0.02–0.04 rad). Closed loop it approaches to 6–8 cm, then stalls: no recovery examples in the data. Chunk-switch jitter fixed by blending (max jump 0.40 → 0.05 rad). Next: near-target start poses in the data, then continue training | `cathlab_sim/newton/watch.py`, `diag_policy.py` |
-| v2: surgical instruments, both arms | ✅ Dataset published (above): expert 60/60 in Newton and CPU MuJoCo on every arm × instrument × start; 640 episodes incl. near-target and drop-recovery starts. ⏳ Next: fine-tune SmolVLA from the base model (separate from v1), then evaluate (evaluation tool ready: `watch.py --task v2 --tiers ... --report`) | [docs/V2_PLAN.md](docs/V2_PLAN.md) |
+| SmolVLA on the Newton data | ⚠️ Trained (v1 model above). Inputs verified identical live vs training; first actions match the expert (0.02–0.04 rad). Closed loop it approaches to 6–8 cm, then stalls: no recovery examples in the data. Chunk-switch jitter fixed by blending (max jump 0.40 → 0.05 rad). Followed up by v2 (recovery starts) and v2.5 | `cathlab_sim/newton/watch.py`, `diag_policy.py` |
+| v2 / v2.5: surgical instruments, both arms | ✅ Datasets published; expert 60/60 in Newton and CPU MuJoCo. v2 model 0/48 (random arm choice). v2.5 model: correct arm 48/48, **2/48 placed**; reach is the remaining failure. **Closed** | [docs/V2_RESULTS.md](docs/V2_RESULTS.md), [docs/V2_PLAN.md](docs/V2_PLAN.md) |
 | MuJoCo track (v1, left arm) | Superseded by the Newton track. Backend, expert (78 %), generator, eval harness | `cathlab_sim/` (top level) |
 
 Throughput on this laptop (RTX 4060 8 GB, i9-14900HX), with cameras: Newton ~1,580 episodes/h at 32 worlds; CPU MuJoCo ~1,170/h per process, ~2,990/h with 12 processes.
@@ -92,7 +96,8 @@ Throughput on this laptop (RTX 4060 8 GB, i9-14900HX), with cameras: Newton ~1,5
 | `cathlab_sim/newton/` | Newton track: task scenes (v1 right arm; v2 instruments, both arms: `instruments.py`), `NewtonTaskSim` (parallel worlds, batched cameras), CPU twin, shared stage checks, expert, generator, LeRobot converter, port and expert checks |
 | `configs/variation/cathlab_fr3_newton.yaml` | v1 variation grid: geometry, palettes, table colours, splits, mass/friction/light ranges |
 | `cathlab_sim/` (top level) | MuJoCo track: robot model and 16-D mapping, scene, backend, IK, v1 expert, generator, evaluation, SmolVLA adapter, viewer |
-| `docs/` | `V2_PLAN.md`: v2 status, how to resume, decisions |
+| `docs/` | `V2_RESULTS.md`: v2 / v2.5 results and diagnosis. `V2_PLAN.md`: v2 plan and decisions. `VLA_MODELS.md`: a learning guide to VLA models |
+| `tools/` | `relabel_side.py` (builds the v2.5 dataset), `plot_v2_results.py` (plots in V2_RESULTS.md) |
 | `reports/` | Check outputs and preview images |
 | `tests/` | MuJoCo-track tests (schema, mapping, layouts, backend, stages) |
 

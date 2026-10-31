@@ -1,8 +1,8 @@
 # v2: surgical instruments, both arms
 
-*Status as of 2026-10-23 23:45. Read "Where things stand" and "How to resume" first.*
+*Plan written 2026-10-23; status updated 2026-10-31, when the project was closed. **Results: [V2_RESULTS.md](V2_RESULTS.md).***
 
-**In one sentence:** the "Hand me the {instrument}" task with realistic surgical instruments, picked by the arm on the instrument's side and placed on a central tray. The 640-episode dataset is built and published. Fine-tuning SmolVLA on it, and evaluating the result, are the next steps.
+**In one sentence:** the "Hand me the {instrument}" task with realistic surgical instruments, picked by the arm on the instrument's side and placed on a central tray. The 640-episode dataset is built and published. SmolVLA was fine-tuned on it (v2) and on a copy with the arm named in the instruction (v2.5); see [V2_RESULTS.md](V2_RESULTS.md).
 
 ## Where things stand
 
@@ -11,11 +11,11 @@
 | 1 | Assets and scene | ✅ Done | Every instrument stays at rest in both engines; max drift CPU 0.18 mm, Newton 0.03 mm (`reports/v2_assets_check.json`) |
 | 2 | Scripted expert, both arms | ✅ Done | 60/60 in Newton and 60/60 in CPU MuJoCo, every arm × instrument × start (`reports/v2_expert_check.json`) |
 | 3 | Dataset | ✅ Done, published | 640 episodes on HF: [`aravindsuresh16/cathlab_fr3_instruments_v1`](https://huggingface.co/datasets/aravindsuresh16/cathlab_fr3_instruments_v1), tag `v1` |
-| 4 | Fine-tune SmolVLA | ⏳ Next | Train from the SmolVLA base model, separate from v1. Command ready below |
-| 5 | Evaluate | ⏳ After phase 4 | Tool ready and tested (`watch.py --task v2 ... --report`) |
-| 6 | Publish | ✅ Dataset, README, GitHub | The v2 model is published only if it places at least 1 instrument (owner's rule) |
+| 4 | Fine-tune SmolVLA | ✅ Done | v2: 2 epochs from the base model (6 h 41 min). v2.5: 1 epoch on the side-labelled copy (3 h 36 min) |
+| 5 | Evaluate | ✅ Done | v2 0/48 (random arm choice); v2.5 2/48 placed, 48/48 correct arm; near-target starts 0/48 (`reports/v2*_eval_*.json`) |
+| 6 | Publish | ✅ Done | v2.5 dataset and model on HF (the v2.5 model placed 2 instruments, meeting the rule below); v2 model not published |
 
-Git: `main` is pushed and clean. Nothing is running in the background.
+Project closed 2026-10-31. Nothing is running in the background.
 
 ## What changed from v1
 
